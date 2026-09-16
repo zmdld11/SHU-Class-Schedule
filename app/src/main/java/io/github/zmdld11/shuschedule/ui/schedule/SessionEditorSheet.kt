@@ -1,13 +1,19 @@
 package io.github.zmdld11.shuschedule.ui.schedule
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenuItem
@@ -24,9 +30,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import io.github.zmdld11.shuschedule.data.db.CourseSession
 import io.github.zmdld11.shuschedule.data.parser.WeekTextParser
+import io.github.zmdld11.shuschedule.ui.theme.LocalScheduleStyle
 
 /**
  * 课程/时段编辑表单：新建自定义课程、给已有课程加时段、改任意字段。
@@ -40,6 +48,7 @@ fun SessionEditorSheet(
     initialSession: CourseSession?,
     slotCount: Int,
     isNewCourse: Boolean,
+    initialColorIndex: Int = 0,
     rescheduleMode: Boolean = false,
     currentWeek: Int = 1,
     onSave: (
@@ -51,12 +60,14 @@ fun SessionEditorSheet(
         room: String,
         teacher: String,
         campus: String,
+        colorIndex: Int,
     ) -> Unit,
     onSaveReschedule: ((week: Int, weekday: Int, startNode: Int, endNode: Int, room: String, teacher: String, campus: String) -> Unit)? = null,
     onDeleteSession: (() -> Unit)?,
     onDismiss: () -> Unit,
 ) {
     var name by remember { mutableStateOf(courseName) }
+    var colorIndex by remember { mutableStateOf(initialColorIndex) }
     var weekday by remember { mutableStateOf(initialSession?.weekday ?: 1) }
     var startNode by remember { mutableStateOf(initialSession?.startNode ?: 1) }
     var endNode by remember { mutableStateOf(initialSession?.endNode ?: 2) }
@@ -179,6 +190,30 @@ fun SessionEditorSheet(
         OutlinedTextField(value = teacher, onValueChange = { teacher = it }, label = { Text("教师") }, singleLine = true)
         OutlinedTextField(value = campus, onValueChange = { campus = it }, label = { Text("校区（可空）") }, singleLine = true)
 
+        // 课程颜色（整门课统一；调休模式无意义不显示）
+        if (!rescheduleMode) {
+            val colors = LocalScheduleStyle.current
+            Text("课程颜色：", style = MaterialTheme.typography.labelMedium)
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                (0 until colors.courseColors.size).forEach { i ->
+                    val selected = colorIndex == i
+                    Box(
+                        Modifier
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(50))
+                            .background(colors.colorsFor(i).container)
+                            .border(
+                                width = if (selected) 3.dp else 1.dp,
+                                color = if (selected) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.outlineVariant,
+                                shape = RoundedCornerShape(50),
+                            )
+                            .clickable { colorIndex = i },
+                    )
+                }
+            }
+        }
+
         Spacer(Modifier.height(4.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Button(
@@ -194,7 +229,7 @@ fun SessionEditorSheet(
                             campus.trim(),
                         )
                     } else {
-                        onSave(name.trim(), weekday, startNode, endNode, weeksText, room.trim(), teacher.trim(), campus.trim())
+                        onSave(name.trim(), weekday, startNode, endNode, weeksText, room.trim(), teacher.trim(), campus.trim(), colorIndex)
                     }
                 },
                 enabled = valid,

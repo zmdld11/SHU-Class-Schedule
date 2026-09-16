@@ -20,8 +20,28 @@ import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** 课表色板数量（colorIndex 对 8 取模分配，保证同名课跨学期颜色一致由 hash 决定） */
+/** 课表色板数量 */
 const val COURSE_PALETTE_SIZE = 8
+
+/**
+ * 课程名 → 色号分配：以名字 hash 为种子（同名课跨学期同色），种子位被占时顺序取第一个空位，
+ * 8 色用尽才允许共存——同学期 ≤8 门课时颜色互不相同。确定性算法，重复导入结果一致。
+ */
+fun assignColorIndices(names: List<String>, preoccupied: Set<Int> = emptySet()): Map<String, Int> {
+    val used = preoccupied.toMutableSet()
+    val result = mutableMapOf<String, Int>()
+    for (name in names) {
+        val seed = ((name.hashCode() % COURSE_PALETTE_SIZE) + COURSE_PALETTE_SIZE) % COURSE_PALETTE_SIZE
+        val idx = if (seed in used && used.size < COURSE_PALETTE_SIZE) {
+            (0 until COURSE_PALETTE_SIZE).firstOrNull { it !in used } ?: seed
+        } else {
+            seed
+        }
+        used += idx
+        result[name] = idx
+    }
+    return result
+}
 
 @Singleton
 class ScheduleRepository @Inject constructor(
@@ -127,12 +147,15 @@ class ScheduleRepository @Inject constructor(
         courseDao.insertSessions(listOf(session.copy(courseId = course.id)))
     }
 
-    /** 新建自定义课程（含第一个时段） */
+    /** 新建自定义课程（含第一个时段）：色号默认同学期避让自动分配，可显式指定 */
     suspend fun addCustomCourse(
         semesterId: Long,
         name: String,
         session: CourseSession,
+        colorIndex: Int? = null,
     ): Long = db.withTransaction {
+        val usedColors = courseDao.getSemesterCourses(semesterId).map { it.course.colorIndex }.toSet()
+        val assigned = colorIndex ?: assignColorIndices(listOf(name), usedColors)[name] ?: 0
         val courseId = courseDao.insertCourses(
             listOf(
                 Course(
@@ -142,7 +165,7 @@ class ScheduleRepository @Inject constructor(
                     className = "",
                     classId = "custom-${System.currentTimeMillis()}",
                     credit = "",
-                    colorIndex = ((name.hashCode() % COURSE_PALETTE_SIZE) + COURSE_PALETTE_SIZE) % COURSE_PALETTE_SIZE,
+                    colorIndex = assigned,
                 )
             )
         ).first()
@@ -257,6 +280,8 @@ class ScheduleRepository @Inject constructor(
         }
 
         courseDao.deleteBySemester(semesterId)
+        // 先按课名 hash 定种子色，再消解碰撞：同学期 ≤8 门课时保证颜色互不相同
+        val colorAssignments = assignColorIndices(parsed.map { it.name })
         parsed.forEach { p ->
             val courseId = courseDao.insertCourses(
                 listOf(
@@ -267,7 +292,7 @@ class ScheduleRepository @Inject constructor(
                         className = p.className,
                         classId = p.classId,
                         credit = p.credit,
-                        colorIndex = ((p.name.hashCode() % COURSE_PALETTE_SIZE) + COURSE_PALETTE_SIZE) % COURSE_PALETTE_SIZE,
+                        colorIndex = colorAssignments[p.name] ?: 0,
                     )
                 )
             ).first()

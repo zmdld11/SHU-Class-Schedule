@@ -500,10 +500,11 @@ fun ScheduleScreen(
                 initialSession = target.session,
                 slotCount = maxOf(state.timeSlots.size, 12),
                 isNewCourse = target.course.id == 0L,
+                initialColorIndex = target.course.colorIndex,
                 rescheduleMode = target.reschedule,
                 currentWeek = currentWeek,
-                onSave = { nm, wd, sn, en, wt, r, t, cp ->
-                    viewModel.saveSessionEdit(nm, wd, sn, en, wt, r, t, cp)
+                onSave = { nm, wd, sn, en, wt, r, t, cp, ci ->
+                    viewModel.saveSessionEdit(nm, wd, sn, en, wt, r, t, cp, ci)
                 },
                 onSaveReschedule = { w, wd, sn, en, r, t, cp ->
                     viewModel.saveReschedule(w, wd, sn, en, r, t, cp)

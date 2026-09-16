@@ -208,6 +208,7 @@ class ScheduleViewModel @Inject constructor(
         room: String,
         teacher: String,
         campus: String,
+        colorIndex: Int = -1,
     ) {
         val target = _editorTarget.value ?: return
         val weeksMask = WeekTextParser.parseMask(weeksText)
@@ -218,6 +219,7 @@ class ScheduleViewModel @Inject constructor(
                         repository.addCustomCourse(
                             semesterId = target.course.semesterId,
                             name = name,
+                            colorIndex = colorIndex.takeIf { it >= 0 },
                             session = CourseSession(
                                 courseId = 0,
                                 weekday = weekday,
@@ -232,7 +234,7 @@ class ScheduleViewModel @Inject constructor(
 
                     target.session == null ->
                         repository.addSession(
-                            course = target.course.copy(name = name),
+                            course = target.course.copy(name = name, colorIndex = colorIndex.takeIf { it >= 0 } ?: target.course.colorIndex),
                             session = CourseSession(
                                 courseId = target.course.id,
                                 weekday = weekday,
@@ -247,7 +249,7 @@ class ScheduleViewModel @Inject constructor(
 
                     else ->
                         repository.saveSessionEdit(
-                            course = target.course.copy(name = name),
+                            course = target.course.copy(name = name, colorIndex = colorIndex.takeIf { it >= 0 } ?: target.course.colorIndex),
                             session = target.session.copy(
                                 weekday = weekday,
                                 startNode = startNode,
