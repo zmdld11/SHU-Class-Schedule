@@ -2,34 +2,30 @@ package io.github.zmdld11.shuschedule.ui.theme
 
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.shape.CutCornerShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import io.github.zmdld11.shuschedule.data.settings.AppTheme
 
 private val ShuBlue = Color(0xFF1E5AA8)
 private val ShuBlueDark = Color(0xFFA8C8F0)
 
-private val LightScheme = lightColorScheme(
+internal val LightScheme = lightColorScheme(
     primary = ShuBlue,
     onPrimary = Color.White,
     primaryContainer = Color(0xFFD6E3FF),
     onPrimaryContainer = Color(0xFF001B3F),
 )
 
-private val DarkScheme = darkColorScheme(
+internal val DarkScheme = darkColorScheme(
     primary = ShuBlueDark,
     onPrimary = Color(0xFF00315F),
     primaryContainer = Color(0xFF10477F),
@@ -70,14 +66,6 @@ internal val ArknightsScheme = darkColorScheme(
     surfaceContainerHighest = Color(0xFF343E45),
 )
 
-private val ArknightsShapes = Shapes(
-    extraSmall = CutCornerShape(2.dp),
-    small = CutCornerShape(4.dp),
-    medium = CutCornerShape(6.dp),
-    large = CutCornerShape(10.dp),
-    extraLarge = CutCornerShape(14.dp),
-)
-
 data class CourseColors(val container: Color, val content: Color)
 
 /** Course color indices belong to data; their rendering belongs to the selected theme. */
@@ -105,6 +93,7 @@ internal val ArknightsCourseColors = listOf(
 
 val LocalScheduleStyle = staticCompositionLocalOf { ScheduleStyle() }
 
+/** 主题解析统一走 ThemeCatalog（内置 + 外部注册），此处只做装配 */
 @Composable
 fun ShuScheduleTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
@@ -112,22 +101,11 @@ fun ShuScheduleTheme(
     theme: AppTheme = AppTheme.DEFAULT,
     content: @Composable () -> Unit,
 ) {
-    val colorScheme = when {
-        theme == AppTheme.ARKNIGHTS -> ArknightsScheme
-        theme.usesDynamicColor(dynamicColor) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-        darkTheme -> DarkScheme
-        else -> LightScheme
-    }
-    val style = if (theme == AppTheme.ARKNIGHTS) {
-        ScheduleStyle(theme, CutCornerShape(topEnd = 7.dp), ArknightsCourseColors)
-    } else ScheduleStyle()
-    CompositionLocalProvider(LocalScheduleStyle provides style) {
+    val definition = ThemeCatalog.of(theme)
+    CompositionLocalProvider(LocalScheduleStyle provides definition.scheduleStyle) {
         MaterialTheme(
-            colorScheme = colorScheme,
-            shapes = if (theme == AppTheme.ARKNIGHTS) ArknightsShapes else Shapes(),
+            colorScheme = definition.colorScheme(darkTheme, dynamicColor),
+            shapes = definition.shapes,
             content = content,
         )
     }
