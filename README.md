@@ -37,14 +37,20 @@
 - 12 节默认作息可编辑、可一键恢复默认；节次结束时间显示开关
 - JSON 全量备份 / 恢复，换机不丢数据
 - Material 3 动态取色，支持深色模式
-- 主题切换：默认 / 明日方舟，选择自动保存；明日方舟提供罗德岛背景、战术配色与课程卡片样式（[主题与素材说明](docs/themes.md)）
+- 主题：默认上大蓝 / 明日方舟（默认版），支持导入 `.shutheme` 主题包，桌面小组件配色随主题（[主题与主题包说明](docs/themes.md)）
 
 ## 下载安装
 
-从 [Releases](https://github.com/zmdld11/SHU-Class-Schedule/releases) 下载最新 `shu-schedule-vX.Y.Z.apk`。
+从 [Releases](https://github.com/zmdld11/SHU-Class-Schedule/releases) 下载，两个安装包同签名可互相覆盖安装：
+
+| 安装包 | 说明 |
+| --- | --- |
+| `shu-schedule-vX.Y.Z.apk`（默认版） | 全功能：内置明日方舟主题 + `.shutheme` 主题包导入 |
+| `shu-schedule-pure-vX.Y.Z.apk`（纯净版） | 仅默认主题，无主题导入，体积更小 |
 
 - 系统要求：Android 8.0（API 26）及以上
 - **v0.3.2 起使用固定签名**：从 v0.3.2+ 升级可直接覆盖安装；从更早版本升级因签名切换需先卸载（卸载前请在 设置 → 备份与恢复 导出 JSON，装好后恢复）
+- 应用内检查更新按当前安装的变体自动匹配下载对应 APK（GitHub 直链，国内网络可能较慢）
 
 ## 已知限制
 

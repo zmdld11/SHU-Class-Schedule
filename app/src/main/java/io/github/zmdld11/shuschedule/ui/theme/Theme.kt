@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.dp
 import io.github.zmdld11.shuschedule.data.settings.AppTheme
+import io.github.zmdld11.shuschedule.data.settings.DarkMode
 
 private val ShuBlue = Color(0xFF1E5AA8)
 private val ShuBlueDark = Color(0xFFA8C8F0)
@@ -70,9 +71,15 @@ data class CourseColors(val container: Color, val content: Color)
 
 /** Course color indices belong to data; their rendering belongs to the selected theme. */
 data class ScheduleStyle(
-    val theme: AppTheme = AppTheme.DEFAULT,
     val courseShape: Shape = RoundedCornerShape(6.dp),
     val courseColors: List<CourseColors> = DefaultCourseColors,
+    /** 主题内置背景图资源（定义侧提供，渲染侧动态引用，主代码不感知具体主题） */
+    @androidx.annotation.DrawableRes val backgroundRes: Int? = null,
+    /** 主题内置背景图文件路径（外部主题包解出的本地文件，优先级同 backgroundRes） */
+    val backgroundPath: String? = null,
+    @androidx.annotation.DrawableRes val logoRes: Int? = null,
+    /** 固定深色主题（弹窗系统栏图标等场景使用） */
+    val fixedDark: Boolean = false,
 ) {
     fun colorsFor(index: Int): CourseColors = courseColors[Math.floorMod(index, courseColors.size)]
 }
@@ -93,18 +100,26 @@ internal val ArknightsCourseColors = listOf(
 
 val LocalScheduleStyle = staticCompositionLocalOf { ScheduleStyle() }
 
+/** 最终生效的深色状态（主题定义 × 用户深浅色偏好解析后的结果），弹窗系统栏等非 Compose 场景消费 */
+val LocalScheduleDark = staticCompositionLocalOf { false }
+
 /** 主题解析统一走 ThemeCatalog（内置 + 外部注册），此处只做装配 */
 @Composable
 fun ShuScheduleTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    definition: ScheduleThemeDefinition = DefaultThemeDefinition,
     dynamicColor: Boolean = true,
-    theme: AppTheme = AppTheme.DEFAULT,
+    darkMode: DarkMode = DarkMode.SYSTEM,
     content: @Composable () -> Unit,
 ) {
-    val definition = ThemeCatalog.of(theme)
-    CompositionLocalProvider(LocalScheduleStyle provides definition.scheduleStyle) {
+    // 用户手动深浅色对固定深色主题无效
+    val wantDark = darkMode == DarkMode.DARK || (darkMode == DarkMode.SYSTEM && isSystemInDarkTheme())
+    val dark = definition.isDark(wantDark)
+    CompositionLocalProvider(
+        LocalScheduleStyle provides definition.scheduleStyle,
+        LocalScheduleDark provides dark,
+    ) {
         MaterialTheme(
-            colorScheme = definition.colorScheme(darkTheme, dynamicColor),
+            colorScheme = definition.colorScheme(wantDark, dynamicColor),
             shapes = definition.shapes,
             content = content,
         )

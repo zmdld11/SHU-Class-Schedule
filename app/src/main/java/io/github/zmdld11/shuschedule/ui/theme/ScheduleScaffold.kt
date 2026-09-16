@@ -17,8 +17,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
-import io.github.zmdld11.shuschedule.R
-import io.github.zmdld11.shuschedule.data.settings.AppTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -47,20 +45,34 @@ fun ScheduleScaffold(
     Scaffold(topBar = topBar) { padding ->
         Box(Modifier.padding(padding).fillMaxSize().background(MaterialTheme.colorScheme.background)) {
             // A chosen photo takes precedence; clearing it restores the theme's built-in backdrop.
+            val style = LocalScheduleStyle.current
+            val themeBackgroundBitmap by produceState<Bitmap?>(null, style.backgroundPath) {
+                value = withContext(Dispatchers.IO) {
+                    style.backgroundPath?.let { BitmapFactory.decodeFile(it) }
+                }
+            }
             Crossfade(targetState = customBackground, label = "scheduleBg") { bitmap ->
                 Box(Modifier.fillMaxSize()) {
-                    if (bitmap != null) {
-                        Image(bitmap.asImageBitmap(), contentDescription = null,
-                            contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
-                        Box(Modifier.matchParentSize().background(MaterialTheme.colorScheme.surface.copy(alpha = 0.82f)))
-                    } else if (LocalScheduleStyle.current.theme == AppTheme.ARKNIGHTS) {
-                        Image(
-                            painter = painterResource(R.drawable.arknights_background),
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.matchParentSize(),
-                        )
-                        Box(Modifier.matchParentSize().background(MaterialTheme.colorScheme.background.copy(alpha = 0.86f)))
+                    when {
+                        bitmap != null -> {
+                            Image(bitmap.asImageBitmap(), contentDescription = null,
+                                contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+                            Box(Modifier.matchParentSize().background(MaterialTheme.colorScheme.surface.copy(alpha = 0.82f)))
+                        }
+                        style.backgroundRes != null -> {
+                            Image(
+                                painter = painterResource(style.backgroundRes),
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.matchParentSize(),
+                            )
+                            Box(Modifier.matchParentSize().background(MaterialTheme.colorScheme.background.copy(alpha = 0.86f)))
+                        }
+                        themeBackgroundBitmap != null -> {
+                            Image(themeBackgroundBitmap!!.asImageBitmap(), contentDescription = null,
+                                contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+                            Box(Modifier.matchParentSize().background(MaterialTheme.colorScheme.background.copy(alpha = 0.86f)))
+                        }
                     }
                 }
             }

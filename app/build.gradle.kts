@@ -20,6 +20,18 @@ android {
         vectorDrawables { useSupportLibrary = true }
     }
 
+    // 双包分发：full=默认版（内置明日方舟主题+.shutheme 主题包导入）；pure=纯净版（仅默认主题）
+    flavorDimensions += "store"
+    productFlavors {
+        create("full") {
+            dimension = "store"
+        }
+        create("pure") {
+            dimension = "store"
+            versionNameSuffix = "-pure"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false

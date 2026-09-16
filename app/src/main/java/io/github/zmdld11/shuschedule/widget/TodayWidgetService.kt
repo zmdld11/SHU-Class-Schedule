@@ -7,6 +7,10 @@ import android.widget.RemoteViewsService
 import dagger.hilt.android.AndroidEntryPoint
 import io.github.zmdld11.shuschedule.R
 import io.github.zmdld11.shuschedule.data.repo.ScheduleRepository
+import io.github.zmdld11.shuschedule.data.settings.SettingsStore
+import io.github.zmdld11.shuschedule.ui.theme.ThemeCatalog
+import io.github.zmdld11.shuschedule.ui.theme.WidgetThemeColors
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import javax.inject.Inject
 
@@ -15,13 +19,22 @@ import javax.inject.Inject
 class TodayWidgetService : RemoteViewsService() {
 
     @Inject lateinit var repository: ScheduleRepository
+    @Inject lateinit var settings: SettingsStore
 
     override fun onGetViewFactory(intent: Intent): RemoteViewsFactory =
-        TodayListFactory(applicationContext, repository)
+        TodayListFactory(
+            applicationContext,
+            repository,
+            // 集合视图无法逐次读取主题，绑定工厂时解析一次（主题切换后小组件整体刷新）
+            runCatching {
+                ThemeCatalog.resolve(runBlocking { settings.appearance.first() }.themeId).widget
+            }.getOrDefault(WidgetThemeColors()),
+        )
 
     class TodayListFactory(
         private val context: Context,
         private val repository: ScheduleRepository,
+        private val colors: WidgetThemeColors,
     ) : RemoteViewsFactory {
 
         private var items: List<TodayItem> = emptyList()
@@ -65,6 +78,7 @@ class TodayWidgetService : RemoteViewsService() {
                 )
                 // 配合 provider 端 setPendingIntentTemplate：点列表项也能打开应用
                 setOnClickFillInIntent(R.id.widget_item_root, Intent())
+                WidgetTheming.applyItem(this, colors)
             }
         }
 

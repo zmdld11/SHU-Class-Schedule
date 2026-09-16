@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -48,10 +49,11 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.zmdld11.shuschedule.data.backup.BackupCodec
 import io.github.zmdld11.shuschedule.data.db.TimeSlot
 import io.github.zmdld11.shuschedule.data.repo.ScheduleRepository
-import io.github.zmdld11.shuschedule.data.settings.AppTheme
 import io.github.zmdld11.shuschedule.data.settings.AppearanceSettings
 import io.github.zmdld11.shuschedule.data.settings.SettingsStore
 import io.github.zmdld11.shuschedule.ui.MainViewModel
+import io.github.zmdld11.shuschedule.ui.update.InstallPermissionDialog
+import io.github.zmdld11.shuschedule.ui.update.UpdateActions
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
@@ -104,21 +106,22 @@ class SettingsViewModel @Inject constructor(
         settings.setScheduleBackgroundEnabled(false)
     }
 
-    /** 手动检查更新：返回 消息 + 新版本页链接（null=已是最新或失败） */
-    fun checkUpdate(onResult: (String, String?) -> Unit) = viewModelScope.launch {
-        val latest = updateClient.fetchLatest()
-        when {
-            latest == null -> onResult("检查更新失败，请稍后再试", null)
-            io.github.zmdld11.shuschedule.data.update.UpdateChecker.isNewer(
-                io.github.zmdld11.shuschedule.BuildConfig.VERSION_NAME, latest.versionName,
-            ) -> onResult("发现新版本 ${latest.tagName}", latest.htmlUrl.ifBlank { latest.apkUrl })
+    /** 手动检查更新：返回 消息 + 新版本信息（null=已是最新或失败） */
+    fun checkUpdate(onResult: (String, io.github.zmdld11.shuschedule.data.update.UpdateChecker.ReleaseInfo?) -> Unit) =
+        viewModelScope.launch {
+            val latest = updateClient.fetchLatest()
+            when {
+                latest == null -> onResult("检查更新失败，请稍后再试", null)
+                io.github.zmdld11.shuschedule.data.update.UpdateChecker.isNewer(
+                    io.github.zmdld11.shuschedule.BuildConfig.VERSION_NAME, latest.versionName,
+                ) -> onResult("发现新版本 ${latest.tagName}", latest)
 
-            else -> onResult(
-                "已是最新版本 v${io.github.zmdld11.shuschedule.BuildConfig.VERSION_NAME}",
-                null,
-            )
+                else -> onResult(
+                    "已是最新版本 v${io.github.zmdld11.shuschedule.BuildConfig.VERSION_NAME}",
+                    null,
+                )
+            }
         }
-    }
 
     val timeSlots: StateFlow<List<TimeSlot>> =
         repository.observeTimeSlots().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -191,6 +194,7 @@ fun SettingsScreen(
     val timeSlots by viewModel.timeSlots.collectAsStateWithLifecycle()
     val appearance by mainViewModel.appearance.collectAsStateWithLifecycle()
     val currentAppearance = appearance ?: AppearanceSettings()
+    val currentDef = io.github.zmdld11.shuschedule.ui.theme.ThemeCatalog.resolve(currentAppearance.themeId)
     val showOffWeek by viewModel.showOffWeek.collectAsStateWithLifecycle()
     val showWeekend by viewModel.showWeekend.collectAsStateWithLifecycle()
     val showSlotEnd by viewModel.showSlotEnd.collectAsStateWithLifecycle()
@@ -199,6 +203,9 @@ fun SettingsScreen(
     val autoUpdateCheck by viewModel.autoUpdateCheck.collectAsStateWithLifecycle()
     var editingSlot by remember { mutableStateOf<TimeSlot?>(null) }
     var confirmingResetSlots by remember { mutableStateOf(false) }
+    var pendingInstall by remember {
+        mutableStateOf<io.github.zmdld11.shuschedule.data.update.UpdateChecker.ReleaseInfo?>(null)
+    }
 
     val bgPicker = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia(),
@@ -223,9 +230,30 @@ fun SettingsScreen(
         }
     }
 
+    // 主题包导入（full 变体解析 .shutheme；纯净版提示不支持）
+    val themeImportLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) {
+            io.github.zmdld11.shuschedule.ui.theme.parseThemePack(context, uri).let { result ->
+                scope.launch {
+                    snackbar.showSnackbar(
+                        when (result) {
+                            is io.github.zmdld11.shuschedule.ui.theme.ThemeImportResult.Ok ->
+                                "已导入主题「${result.title}」"
+                            is io.github.zmdld11.shuschedule.ui.theme.ThemeImportResult.Failed ->
+                                "导入失败：${result.reason}"
+                            io.github.zmdld11.shuschedule.ui.theme.ThemeImportResult.NotSupported ->
+                                "当前为纯净版，不支持主题包导入"
+                        },
+                    )
+                }
+            }
+        }
+    }
+
     Scaffold(
-        topBar = {
-            TopAppBar(
+        topBar = {            TopAppBar(
                 title = { Text("设置") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -238,22 +266,48 @@ fun SettingsScreen(
     ) { padding ->
         LazyColumn(Modifier.padding(padding)) {
             item {
-                ThemePicker(selectedTheme = currentAppearance.theme, onSelect = mainViewModel::setTheme)
+                ThemePicker(
+                    selectedId = currentAppearance.themeId,
+                    onSelect = { mainViewModel.setTheme(it); },
+                    onImport = { themeImportLauncher.launch(arrayOf("application/zip", "application/octet-stream")) },
+                )
             }
             item {
+                val dynamicAllowed = currentDef.usesDynamicColor(true)
                 ListItem(
                     headlineContent = { Text("跟随系统动态取色") },
                     supportingContent = {
-                        Text(if (currentAppearance.theme == AppTheme.ARKNIGHTS)
-                            "明日方舟使用固定深色配色；切回默认主题后恢复此设置"
+                        Text(if (!dynamicAllowed)
+                            "当前主题使用固定配色；切回默认主题后恢复此设置"
                         else "配色跟随手机壁纸（Android 12+）；关闭或系统不支持时使用上大蓝")
                     },
                     trailingContent = {
                         Switch(
                             checked = currentAppearance.dynamicColor,
                             onCheckedChange = mainViewModel::setDynamicColor,
-                            enabled = currentAppearance.theme == AppTheme.DEFAULT && android.os.Build.VERSION.SDK_INT >= 31,
+                            enabled = dynamicAllowed && android.os.Build.VERSION.SDK_INT >= 31,
                         )
+                    },
+                )
+            }
+            item {
+                // 固定深色主题（明日方舟/深色主题包）不提供深浅色切换
+                ListItem(
+                    headlineContent = { Text("深色模式") },
+                    supportingContent = {
+                        if (currentDef.fixedDark) {
+                            Text("当前主题固定深色，不支持切换")
+                        } else {
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                io.github.zmdld11.shuschedule.data.settings.DarkMode.entries.forEach { mode ->
+                                    FilterChip(
+                                        selected = currentAppearance.darkMode == mode,
+                                        onClick = { mainViewModel.setDarkMode(mode) },
+                                        label = { Text(mode.title) },
+                                    )
+                                }
+                            }
+                        }
                     },
                 )
             }
@@ -312,7 +366,8 @@ fun SettingsScreen(
                     supportingContent = {
                         Text(when {
                             scheduleBgEnabled -> "已设置自选图片，优先于主题背景；清除后恢复主题背景"
-                            currentAppearance.theme == AppTheme.ARKNIGHTS -> "正在使用罗德岛背景；可从相册选择图片替换"
+                            io.github.zmdld11.shuschedule.ui.theme.ThemeCatalog.resolve(currentAppearance.themeId).backgroundRes != null ->
+                                "正在使用主题内置背景；可从相册选择图片替换"
                             else -> "从相册选一张图作为周视图背景（自动加蒙版保证可读）"
                         })
                     },
@@ -372,28 +427,19 @@ fun SettingsScreen(
                     headlineContent = { Text("关于") },
                     supportingContent = {
                         Text(
-                            "上大课表 v${io.github.zmdld11.shuschedule.BuildConfig.VERSION_NAME} · 课表数据全部保存在本机"
+                            "上大课表 v${io.github.zmdld11.shuschedule.BuildConfig.VERSION_NAME} · 课表数据全部保存在本机 · 点按检查更新"
                         )
                     },
-                )
-            }
-            item {
-                ListItem(
-                    headlineContent = { Text("检查更新") },
-                    supportingContent = { Text("从 GitHub Releases 检查新版本") },
                     modifier = Modifier.clickable {
-                        viewModel.checkUpdate { msg, url ->
+                        viewModel.checkUpdate { msg, info ->
                             scope.launch {
-                                val result = snackbar.showSnackbar(msg, actionLabel = url?.let { "下载" })
-                                if (result == androidx.compose.material3.SnackbarResult.ActionPerformed && url != null) {
-                                    runCatching {
-                                        context.startActivity(
-                                            android.content.Intent(
-                                                android.content.Intent.ACTION_VIEW,
-                                                android.net.Uri.parse(url),
-                                            ),
-                                        )
-                                    }
+                                if (info == null) {
+                                    snackbar.showSnackbar(msg)
+                                    return@launch
+                                }
+                                val result = snackbar.showSnackbar(msg, actionLabel = "下载")
+                                if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) {
+                                    UpdateActions.startDownload(context, info) { pendingInstall = it }
                                 }
                             }
                         }
@@ -409,19 +455,22 @@ fun SettingsScreen(
                     },
                 )
             }
-            item {
-                ListItem(
-                    headlineContent = { Text("明日方舟主题素材") },
-                    supportingContent = { Text("来自 mashirozx/arknights-ui（代码 MIT）；游戏贴图版权归原权利人，仅供学习，请勿商用。本应用为非官方项目。") },
-                    modifier = Modifier.clickable {
-                        runCatching {
-                            context.startActivity(android.content.Intent(
-                                android.content.Intent.ACTION_VIEW,
-                                "https://github.com/mashirozx/arknights-ui".toUri(),
-                            ))
-                        }
-                    },
-                )
+            // 明日方舟主题仅随完整版分发，纯净版不展示素材声明
+            if (io.github.zmdld11.shuschedule.BuildConfig.FLAVOR == "full") {
+                item {
+                    ListItem(
+                        headlineContent = { Text("明日方舟主题素材") },
+                        supportingContent = { Text("来自 mashirozx/arknights-ui（代码 MIT）；游戏贴图版权归原权利人，仅供学习，请勿商用。本应用为非官方项目。") },
+                        modifier = Modifier.clickable {
+                            runCatching {
+                                context.startActivity(android.content.Intent(
+                                    android.content.Intent.ACTION_VIEW,
+                                    "https://github.com/mashirozx/arknights-ui".toUri(),
+                                ))
+                            }
+                        },
+                    )
+                }
             }
             item {
                 ListItem(
@@ -456,6 +505,8 @@ fun SettingsScreen(
             dismissButton = { TextButton(onClick = { confirmingResetSlots = false }) { Text("取消") } },
         )
     }
+
+    InstallPermissionDialog(info = pendingInstall, onDismiss = { pendingInstall = null })
 
     editingSlot?.let { slot ->
         var start by remember(slot.node) { mutableStateOf(slot.startTime) }

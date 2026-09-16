@@ -32,25 +32,30 @@ jobs:
             echo "KEYSTORE_BASE64 secret 未配置，回退 debug 签名（跨版本覆盖安装会失败）"
           fi
 
-      - name: Build release APK
+      - name: Build release APK (full + pure)
         env:
           KEYSTORE_FILE: ${{ github.workspace }}/release.jks
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-        run: ./gradlew assembleRelease
+        run: ./gradlew assembleFullRelease assemblePureRelease
 
-      - name: Print APK signature fingerprint
+      - name: Print APK signature fingerprints
         run: |
           APKSIGNER=$(ls /usr/local/lib/android/sdk/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1)
           if [ -n "$APKSIGNER" ]; then
-            echo "== release APK 签名指纹（应与固定 keystore 一致：994e30928f051446745a047616edbbabb7d0620261b588ef4997cbed8d47e5db）=="
-            "$APKSIGNER" verify --print-certs app/build/outputs/apk/release/app-release.apk | head -3
+            echo "== 签名指纹（应与固定 keystore 一致：994e30928f051446745a047616edbbabb7d0620261b588ef4997cbed8d47e5db）=="
+            for apk in app/build/outputs/apk/full/release/app-full-release.apk app/build/outputs/apk/pure/release/app-pure-release.apk; do
+              echo "-- $apk"
+              "$APKSIGNER" verify --print-certs "$apk" | head -3
+            done
           else
             echo "runner 未找到 apksigner，跳过指纹输出"
           fi
 
-      - name: Rename APK
-        run: cp app/build/outputs/apk/release/app-release.apk shu-schedule-${{ github.ref_name }}.apk
+      - name: Rename APKs
+        run: |
+          cp app/build/outputs/apk/full/release/app-full-release.apk shu-schedule-${{ github.ref_name }}.apk
+          cp app/build/outputs/apk/pure/release/app-pure-release.apk shu-schedule-pure-${{ github.ref_name }}.apk
 
       - name: Locate release notes
         id: notes
@@ -63,10 +68,12 @@ jobs:
             echo "changelogs/${{ github.ref_name }}.md 不存在，回退自动生成 release notes"
           fi
 
-      - name: Create release and upload APK
+      - name: Create release and upload APKs
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: shu-schedule-${{ github.ref_name }}.apk
+          files: |
+            shu-schedule-${{ github.ref_name }}.apk
+            shu-schedule-pure-${{ github.ref_name }}.apk
           body_path: ${{ steps.notes.outputs.path }}
           generate_release_notes: ${{ steps.notes.outputs.found != 'true' }}

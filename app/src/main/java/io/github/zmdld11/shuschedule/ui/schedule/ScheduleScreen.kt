@@ -72,7 +72,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.zmdld11.shuschedule.R
 import io.github.zmdld11.shuschedule.data.db.CourseSession
 import io.github.zmdld11.shuschedule.data.db.CourseWithSessions
-import io.github.zmdld11.shuschedule.data.settings.AppTheme
 import io.github.zmdld11.shuschedule.ui.theme.LocalScheduleStyle
 import io.github.zmdld11.shuschedule.ui.theme.ScheduleScaffold
 import io.github.zmdld11.shuschedule.ui.theme.ThemeDialogSystemBars
@@ -157,9 +156,9 @@ fun ScheduleScreen(
                     }
                 },
                 navigationIcon = {
-                    if (scheduleStyle.theme == AppTheme.ARKNIGHTS) {
+                    scheduleStyle.logoRes?.let { logo ->
                         Image(
-                            painterResource(R.drawable.arknights_rhodes_island),
+                            painterResource(logo),
                             contentDescription = null,
                             modifier = Modifier.padding(start = 12.dp, end = 8.dp).size(32.dp),
                         )
@@ -348,9 +347,20 @@ fun ScheduleScreen(
                 // 课程列（默认工作日；调休到周末的周自动加列）
                 visibleDays.forEach { weekday ->
                     val override = weekOverride[weekday]
+                    // 调休差异底色：放假=主色淡洗 / 调休上课=强调色淡洗，一眼可辨
+                    val overrideTint = when (override?.mode) {
+                        DayOverride.MODE_HOLIDAY -> MaterialTheme.colorScheme.primary.copy(alpha = 0.07f)
+                        DayOverride.MODE_SUBSTITUTE -> MaterialTheme.colorScheme.tertiary.copy(alpha = 0.09f)
+                        else -> androidx.compose.ui.graphics.Color.Transparent
+                    }
                     if (override?.mode == DayOverride.MODE_HOLIDAY) {
                         // 放假：不排课，居中轻提示
-                        Box(Modifier.weight(1f).height(CELL_HEIGHT * nodeCount)) {
+                        Box(
+                            Modifier
+                                .weight(1f)
+                                .height(CELL_HEIGHT * nodeCount)
+                                .background(overrideTint),
+                        ) {
                             Text(
                                 "放假",
                                 style = MaterialTheme.typography.labelMedium,
@@ -364,7 +374,12 @@ fun ScheduleScreen(
                         val effectiveWeekday = substitute?.substituteWeekday ?: weekday
                         val effectiveWeek = substitute?.sourceWeek ?: w
                         val blocks = viewModel.blocksFor(effectiveWeek, effectiveWeekday, showOffWeek)
-                    Box(Modifier.weight(1f).height(CELL_HEIGHT * nodeCount)) {
+                    Box(
+                        Modifier
+                            .weight(1f)
+                            .height(CELL_HEIGHT * nodeCount)
+                            .background(overrideTint),
+                    ) {
                         blocks.forEach { block ->
                             val courseColors = scheduleStyle.colorsFor(block.course.course.colorIndex)
                             val span = block.session.endNode - block.session.startNode + 1
@@ -498,7 +513,8 @@ fun ScheduleScreen(
         }
     }
 
-    // 发现新版本
+    // 发现新版本（应用内下载，未授权安装时引导设置，可回退浏览器）
+    var pendingInstall by remember { mutableStateOf<io.github.zmdld11.shuschedule.data.update.UpdateChecker.ReleaseInfo?>(null) }
     updateInfo?.let { info ->
         val context = androidx.compose.ui.platform.LocalContext.current
         AlertDialog(
@@ -512,19 +528,13 @@ fun ScheduleScreen(
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.dismissUpdate()
-                    runCatching {
-                        context.startActivity(
-                            android.content.Intent(
-                                android.content.Intent.ACTION_VIEW,
-                                android.net.Uri.parse(info.htmlUrl.ifBlank { info.apkUrl }),
-                            ),
-                        )
-                    }
-                }) { Text("浏览器下载") }
+                    io.github.zmdld11.shuschedule.ui.update.UpdateActions.startDownload(context, info) { pendingInstall = it }
+                }) { Text("下载更新") }
             },
             dismissButton = { TextButton(onClick = viewModel::dismissUpdate) { Text("稍后") } },
         )
     }
+    io.github.zmdld11.shuschedule.ui.update.InstallPermissionDialog(info = pendingInstall, onDismiss = { pendingInstall = null })
 
     // 删除整门课确认
     deletingCourse?.let { c ->
