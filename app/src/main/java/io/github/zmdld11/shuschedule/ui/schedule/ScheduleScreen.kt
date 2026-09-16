@@ -373,7 +373,8 @@ fun ScheduleScreen(
                         val substitute = override?.takeIf { it.mode == DayOverride.MODE_SUBSTITUTE }
                         val effectiveWeekday = substitute?.substituteWeekday ?: weekday
                         val effectiveWeek = substitute?.sourceWeek ?: w
-                        val blocks = viewModel.blocksFor(effectiveWeek, effectiveWeekday, showOffWeek)
+                        // 调休列只显示实际要上的课（来源周当天的课表）；置灰的未来课对补课日无意义
+                        val blocks = viewModel.blocksFor(effectiveWeek, effectiveWeekday, showOffWeek && substitute == null)
                     Box(
                         Modifier
                             .weight(1f)
