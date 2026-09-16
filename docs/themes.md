@@ -12,9 +12,15 @@
 ## 扩展主题
 
 1. 在 `data/settings/AppTheme.kt` 添加稳定 ID、名称、描述及深浅色 / 动态取色规则。持久化使用 ID，不能随意改名。
-2. 在 `ui/theme/Theme.kt` 定义 Material 配色、形状及 `ScheduleStyle` 课程色板。课程记录只保存 `colorIndex`，不因切换主题改写数据库。
+2. 在 `ui/theme/ThemeCatalog.kt` 实现一个 `ScheduleThemeDefinition`（Material 配色、形状、`ScheduleStyle` 课程色板）并登记进 `ThemeCatalog.builtIn`。课程记录只保存 `colorIndex`，不因切换主题改写数据库。
 3. 根据需要扩展 `ScheduleScaffold` 与 `ThemePicker` 预览；图片使用本地 `drawable-nodpi` 资源。
 4. 增补主题解析 / 配色对比度测试，检查设置、课表、弹窗和系统栏。
+
+渲染管线（`ShuScheduleTheme` → `ThemePicker` → `ScheduleScaffold`）只认 `ThemeCatalog`，不感知具体主题。
+
+## 主题商店（规划中）
+
+`ThemeCatalog` 预留了 `register()`：外部/下载主题实现 `ScheduleThemeDefinition` 后在运行时注册即可被 `ThemePicker` 列出，无需改动渲染管线。当前应用保持完全离线，商店的下载与安装流程（主题包格式、来源校验、冲突处理）尚未实现；接入时只需把下载好的定义注册进目录，并在 `AppTheme.fromId` 之外维护外部 ID 的持久化。
 
 ## 素材来源与版权
 

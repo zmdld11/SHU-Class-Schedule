@@ -308,39 +308,6 @@ fun SettingsScreen(
             item { HorizontalDivider() }
             item {
                 ListItem(
-                    headlineContent = { Text("自动检查更新") },
-                    supportingContent = { Text("每天启动时静默检查一次新版本；关闭后仍可手动检查") },
-                    trailingContent = {
-                        Switch(checked = autoUpdateCheck, onCheckedChange = viewModel::setAutoUpdateCheck)
-                    },
-                )
-            }
-            item {
-                ListItem(
-                    headlineContent = { Text("检查更新") },
-                    supportingContent = { Text("从 GitHub Releases 检查新版本（每天启动时也会自动检查一次）") },
-                    modifier = Modifier.clickable {
-                        viewModel.checkUpdate { msg, url ->
-                            scope.launch {
-                                val result = snackbar.showSnackbar(msg, actionLabel = url?.let { "下载" })
-                                if (result == androidx.compose.material3.SnackbarResult.ActionPerformed && url != null) {
-                                    runCatching {
-                                        context.startActivity(
-                                            android.content.Intent(
-                                                android.content.Intent.ACTION_VIEW,
-                                                android.net.Uri.parse(url),
-                                            ),
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    },
-                )
-            }
-            item { HorizontalDivider() }
-            item {
-                ListItem(
                     headlineContent = { Text("课表背景") },
                     supportingContent = {
                         Text(when {
@@ -407,6 +374,38 @@ fun SettingsScreen(
                         Text(
                             "上大课表 v${io.github.zmdld11.shuschedule.BuildConfig.VERSION_NAME} · 课表数据全部保存在本机"
                         )
+                    },
+                )
+            }
+            item {
+                ListItem(
+                    headlineContent = { Text("检查更新") },
+                    supportingContent = { Text("从 GitHub Releases 检查新版本") },
+                    modifier = Modifier.clickable {
+                        viewModel.checkUpdate { msg, url ->
+                            scope.launch {
+                                val result = snackbar.showSnackbar(msg, actionLabel = url?.let { "下载" })
+                                if (result == androidx.compose.material3.SnackbarResult.ActionPerformed && url != null) {
+                                    runCatching {
+                                        context.startActivity(
+                                            android.content.Intent(
+                                                android.content.Intent.ACTION_VIEW,
+                                                android.net.Uri.parse(url),
+                                            ),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    },
+                )
+            }
+            item {
+                ListItem(
+                    headlineContent = { Text("自动检查更新") },
+                    supportingContent = { Text("每天启动时静默检查一次新版本") },
+                    trailingContent = {
+                        Switch(checked = autoUpdateCheck, onCheckedChange = viewModel::setAutoUpdateCheck)
                     },
                 )
             }
