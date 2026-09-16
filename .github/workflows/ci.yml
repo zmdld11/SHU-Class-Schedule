@@ -18,11 +18,17 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Unit tests & debug build
-        run: ./gradlew testDebugUnitTest assembleDebug
+      - name: Unit tests & debug builds (full + pure)
+        run: ./gradlew testFullDebugUnitTest testPureDebugUnitTest assembleFullDebug assemblePureDebug
 
       - uses: actions/upload-artifact@v4
         with:
-          name: debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: debug-apk-full
+          path: app/build/outputs/apk/full/debug/app-full-debug.apk
+          retention-days: 7
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: debug-apk-pure
+          path: app/build/outputs/apk/pure/debug/app-pure-debug.apk
           retention-days: 7
