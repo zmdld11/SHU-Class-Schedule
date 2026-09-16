@@ -89,11 +89,17 @@ abstract class BaseTodayWidgetProvider : AppWidgetProvider() {
         appWidgetId: Int,
     ): RemoteViews
 
+    /** 启动入口走 ACTION_MAIN/LAUNCHER 标准形式；
+     * FLAG_MUTABLE 是集合模板（setPendingIntentTemplate + FillInIntent）在 Android 12+ 的硬性要求 */
     protected fun openAppIntent(context: Context): PendingIntent =
         PendingIntent.getActivity(
             context, 0,
-            Intent(context, MainActivity::class.java),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_LAUNCHER)
+                component = ComponentName(context, MainActivity::class.java)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
         )
 
     protected fun headerViews(views: RemoteViews, data: TodayData) {

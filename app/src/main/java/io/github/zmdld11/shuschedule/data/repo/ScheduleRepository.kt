@@ -42,13 +42,27 @@ class ScheduleRepository @Inject constructor(
     suspend fun getDayOverrides(semesterId: Long): List<DayOverride> =
         dayOverrideDao.getForSemester(semesterId)
 
-    /** 设置某天覆盖；mode<0 表示清除（恢复正常） */
-    suspend fun setDayOverride(semesterId: Long, week: Int, weekday: Int, mode: Int, substituteWeekday: Int) {
+    /** 设置某天覆盖；mode<0 表示清除（恢复正常）。班模式 sourceWeek=跨周补课的来源教学周 */
+    suspend fun setDayOverride(
+        semesterId: Long,
+        week: Int,
+        weekday: Int,
+        mode: Int,
+        substituteWeekday: Int,
+        sourceWeek: Int? = null,
+    ) {
         if (mode < 0) {
             dayOverrideDao.delete(semesterId, week, weekday)
         } else {
             dayOverrideDao.upsert(
-                DayOverride(semesterId = semesterId, week = week, weekday = weekday, mode = mode, substituteWeekday = substituteWeekday),
+                DayOverride(
+                    semesterId = semesterId,
+                    week = week,
+                    weekday = weekday,
+                    mode = mode,
+                    substituteWeekday = substituteWeekday,
+                    sourceWeek = sourceWeek,
+                ),
             )
         }
     }
