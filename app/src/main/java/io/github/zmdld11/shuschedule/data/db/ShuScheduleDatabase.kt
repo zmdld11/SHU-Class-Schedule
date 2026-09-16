@@ -16,7 +16,7 @@ class Converters {
 
 @Database(
     entities = [Semester::class, Course::class, CourseSession::class, TimeSlot::class, DayOverride::class],
-    version = 4,
+    version = 5,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)

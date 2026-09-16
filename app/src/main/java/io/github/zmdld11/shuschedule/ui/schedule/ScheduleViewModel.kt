@@ -333,10 +333,10 @@ class ScheduleViewModel @Inject constructor(
         filterBlocks(state.value.courses, week, weekday, includeOffWeek)
 
     /** 设置/清除某天的调休覆盖（mode<0=恢复正常），写入后同步小组件 */
-    fun setDayOverride(week: Int, weekday: Int, mode: Int, substituteWeekday: Int = 0) {
+    fun setDayOverride(week: Int, weekday: Int, mode: Int, substituteWeekday: Int = 0, sourceWeek: Int? = null) {
         val semester = state.value.semester ?: return
         viewModelScope.launch {
-            repository.setDayOverride(semester.id, week, weekday, mode, substituteWeekday)
+            repository.setDayOverride(semester.id, week, weekday, mode, substituteWeekday, sourceWeek)
             widgetUpdater.pushAll()
         }
     }

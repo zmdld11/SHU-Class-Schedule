@@ -47,6 +47,13 @@ private class Migration3To4 : Migration(3, 4) {
     }
 }
 
+/** v4→v5：班模式来源教学周（跨周补课）；老数据 null=当天所在周，行为不变 */
+private class Migration4To5 : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE day_overrides ADD COLUMN sourceWeek INTEGER DEFAULT NULL")
+    }
+}
+
 @Module
 @InstallIn(SingletonComponent::class)
 object DatabaseModule {
@@ -55,8 +62,8 @@ object DatabaseModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): ShuScheduleDatabase =
         Room.databaseBuilder(context, ShuScheduleDatabase::class.java, "shu_schedule.db")
-            .addMigrations(Migration2To3(), Migration3To4())
-            // 开发期兜底（已提供 v2→v4 迁移，正常升级不触发破坏性重建）
+            .addMigrations(Migration2To3(), Migration3To4(), Migration4To5())
+            // 开发期兜底（已提供 v2→v5 迁移，正常升级不触发破坏性重建）
             .fallbackToDestructiveMigration(true)
             .build()
 

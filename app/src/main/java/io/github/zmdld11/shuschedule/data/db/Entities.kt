@@ -140,12 +140,14 @@ data class DayOverride(
     /** MODE_HOLIDAY=放假不上课；MODE_SUBSTITUTE=按 substituteWeekday 的课表上 */
     val mode: Int,
     val substituteWeekday: Int = 0,
+    /** 班模式下来源教学周（跨周补课，如 9/20 补第 5 周的课）；null=当天所在周 */
+    val sourceWeek: Int? = null,
 ) {
     companion object {
         const val MODE_HOLIDAY = 0
         const val MODE_SUBSTITUTE = 1
 
-        /** 显示用：「休」/「班·周三」 */
+        /** 显示用：「休」/「班·周三」/「班·周三·第5周」 */
         val WEEKDAY_CHARS = listOf("一", "二", "三", "四", "五", "六", "日")
     }
 }

@@ -108,6 +108,39 @@ class TodayScheduleTest {
     }
 
     @Test
+    fun `cross-week substitute renders source week sessions only`() {
+        // 开学 9/14：9/20 为第 1 周周日，10/6 为第 4 周周二。
+        // 「9/20 补 10/6 的课」→ 只显示第 4 周周二才有的课，其他周的周二课不显示
+        val tuesdayCourses = listOf(
+            course(CourseSession(courseId = 1, weekday = 2, startNode = 1, endNode = 2, weeksMask = CourseSession.maskOf(listOf(4)), room = "补课教室", teacher = "第4周老师")),
+            course(CourseSession(courseId = 1, weekday = 2, startNode = 7, endNode = 8, weeksMask = CourseSession.maskOf(listOf(2)), room = "第2周教室", teacher = "第2周老师")),
+        )
+        val overrides = listOf(
+            DayOverride(semesterId = 1, week = 1, weekday = 7, mode = DayOverride.MODE_SUBSTITUTE, substituteWeekday = 2, sourceWeek = 4),
+        )
+        val sunday = LocalDate.of(2026, 9, 20)
+        val data = TodaySchedule.build(semester, tuesdayCourses, slots, overrides, now = sunday, clock = LocalTime.of(8, 0))
+        assertEquals(1, data.items.size)
+        assertEquals("补课教室", data.items.single().place)
+        assertTrue(data.weekLabel.contains("补10/6的课"))
+    }
+
+    @Test
+    fun `source week equal to current week behaves as same-week substitute`() {
+        // sourceWeek=当天所在周时与不设来源周等价，标签仍走「按周X上」
+        val tuesdayCourses = listOf(
+            course(CourseSession(courseId = 1, weekday = 2, startNode = 1, endNode = 2, weeksMask = week1, room = "T1", teacher = "t")),
+        )
+        val overrides = listOf(
+            DayOverride(semesterId = 1, week = 1, weekday = 7, mode = DayOverride.MODE_SUBSTITUTE, substituteWeekday = 2, sourceWeek = 1),
+        )
+        val sunday = LocalDate.of(2026, 9, 20)
+        val data = TodaySchedule.build(semester, tuesdayCourses, slots, overrides, now = sunday, clock = LocalTime.of(8, 0))
+        assertEquals(1, data.items.size)
+        assertTrue(data.weekLabel.contains("按周二上"))
+    }
+
+    @Test
     fun `override outside current week is ignored`() {
         val overrides = listOf(
             DayOverride(semesterId = 1, week = 2, weekday = 3, mode = DayOverride.MODE_HOLIDAY),

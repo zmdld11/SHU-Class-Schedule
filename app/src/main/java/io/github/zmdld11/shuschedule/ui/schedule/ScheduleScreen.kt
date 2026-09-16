@@ -35,6 +35,8 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -44,9 +46,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -297,8 +301,15 @@ fun ScheduleScreen(
                                         color = if (isToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                     if (override != null) {
+                                        val subDate = override.sourceWeek
+                                            ?.takeIf { it != w }
+                                            ?.let { state.dateOf(it, override.substituteWeekday) }
                                         Text(
-                                            if (override.mode == DayOverride.MODE_HOLIDAY) "休" else "班·周${DAY_CHARS[override.substituteWeekday - 1]}",
+                                            when {
+                                                override.mode == DayOverride.MODE_HOLIDAY -> "休"
+                                                subDate != null -> "补${subDate.monthValue}/${subDate.dayOfMonth}"
+                                                else -> "班·周${DAY_CHARS[override.substituteWeekday - 1]}"
+                                            },
                                             style = MaterialTheme.typography.labelSmall,
                                             color = if (override.mode == DayOverride.MODE_HOLIDAY) {
                                                 MaterialTheme.colorScheme.primary
@@ -349,9 +360,11 @@ fun ScheduleScreen(
                             )
                         }
                     } else {
-                        // 调休列按来源星期的课表渲染
-                        val effectiveWeekday = override?.substituteWeekday?.takeIf { override.mode == DayOverride.MODE_SUBSTITUTE } ?: weekday
-                        val blocks = viewModel.blocksFor(w, effectiveWeekday, showOffWeek)
+                        // 调休列按来源星期的课表渲染；跨周补课（sourceWeek）按来源教学周取课
+                        val substitute = override?.takeIf { it.mode == DayOverride.MODE_SUBSTITUTE }
+                        val effectiveWeekday = substitute?.substituteWeekday ?: weekday
+                        val effectiveWeek = substitute?.sourceWeek ?: w
+                        val blocks = viewModel.blocksFor(effectiveWeek, effectiveWeekday, showOffWeek)
                     Box(Modifier.weight(1f).height(CELL_HEIGHT * nodeCount)) {
                         blocks.forEach { block ->
                             val courseColors = scheduleStyle.colorsFor(block.course.course.colorIndex)
@@ -535,9 +548,12 @@ fun ScheduleScreen(
         DayOverrideDialog(
             week = dw,
             weekday = dd,
+            totalWeeks = semester?.totalWeeks ?: 16,
+            startEpochDay = semester?.startDateEpochDay ?: LocalDate.now().toEpochDay(),
             existing = state.overrideOf(dw, dd),
-            onSave = { mode, sub ->
-                viewModel.setDayOverride(dw, dd, mode, sub)
+            dateOfSource = { sw, sd -> state.dateOf(sw, sd) },
+            onSave = { mode, sub, sourceWeek ->
+                viewModel.setDayOverride(dw, dd, mode, sub, sourceWeek)
                 dayOverrideDialog = null
             },
             onClear = {
@@ -706,12 +722,16 @@ internal fun formatWeeks(weeks: Set<Int>): String {    if (weeks.isEmpty()) retu
     return parts.joinToString(",")
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DayOverrideDialog(
     week: Int,
     weekday: Int,
+    totalWeeks: Int,
+    startEpochDay: Long,
     existing: DayOverride?,
-    onSave: (mode: Int, substituteWeekday: Int) -> Unit,
+    dateOfSource: (week: Int, weekday: Int) -> LocalDate?,
+    onSave: (mode: Int, substituteWeekday: Int, sourceWeek: Int?) -> Unit,
     onClear: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -719,6 +739,9 @@ private fun DayOverrideDialog(
         mutableStateOf(existing?.mode?.takeIf { it >= 0 } ?: -1) // -1 = 未选（默认正常）
     }
     var substitute by remember(existing) { mutableStateOf(existing?.substituteWeekday?.takeIf { it > 0 } ?: 1) }
+    var sourceWeek by remember(existing) { mutableStateOf<Int?>(existing?.sourceWeek) }
+    var showDatePicker by remember { mutableStateOf(false) }
+    var dateOutOfRange by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -745,10 +768,31 @@ private fun DayOverrideDialog(
                         (1..7).filter { it != weekday }.forEach { d ->
                             FilterChip(
                                 selected = substitute == d,
-                                onClick = { substitute = d },
+                                onClick = {
+                                    substitute = d
+                                    dateOutOfRange = false
+                                },
                                 label = { Text("周${DAY_CHARS[d - 1]}") },
                             )
                         }
+                    }
+                    Text("补的是哪一天的课（默认当天所在周）：", style = MaterialTheme.typography.labelMedium)
+                    OutlinedButton(onClick = { showDatePicker = true }) {
+                        val d = sourceWeek?.let { dateOfSource(it, substitute) }
+                        Text(
+                            when {
+                                sourceWeek == null -> "当天所在周（第 $week 周）"
+                                d != null -> "第 $sourceWeek 周周${DAY_CHARS[substitute - 1]} · ${d.monthValue}/${d.dayOfMonth}"
+                                else -> "第 $sourceWeek 周周${DAY_CHARS[substitute - 1]}"
+                            }
+                        )
+                    }
+                    if (dateOutOfRange) {
+                        Text(
+                            "所选日期不在本学期内",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
                     }
                 }
             }
@@ -757,12 +801,41 @@ private fun DayOverrideDialog(
             TextButton(onClick = {
                 when (mode) {
                     -2 -> onClear()          // 显式选了正常上课 = 清除覆盖
-                    DayOverride.MODE_HOLIDAY -> onSave(DayOverride.MODE_HOLIDAY, 0)
-                    DayOverride.MODE_SUBSTITUTE -> onSave(DayOverride.MODE_SUBSTITUTE, substitute)
+                    DayOverride.MODE_HOLIDAY -> onSave(DayOverride.MODE_HOLIDAY, 0, null)
+                    DayOverride.MODE_SUBSTITUTE -> onSave(DayOverride.MODE_SUBSTITUTE, substitute, sourceWeek)
                     else -> onClear()
                 }
             }) { Text("确定") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
     )
+
+    if (showDatePicker) {
+        val pickerState = rememberDatePickerState(initialSelectedDateMillis = todayEpochMillis())
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    val millis = pickerState.selectedDateMillis
+                    if (millis != null) {
+                        val picked = java.time.Instant.ofEpochMilli(millis).atZone(java.time.ZoneOffset.UTC).toLocalDate()
+                        val pickedWeek = ((picked.toEpochDay() - startEpochDay) / 7 + 1).toInt()
+                        if (pickedWeek in 1..totalWeeks) {
+                            sourceWeek = pickedWeek
+                            substitute = picked.dayOfWeek.value
+                            dateOutOfRange = false
+                        } else {
+                            dateOutOfRange = true
+                        }
+                    }
+                    showDatePicker = false
+                }) { Text("确定") }
+            },
+            dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("取消") } },
+        ) {
+            DatePicker(state = pickerState, title = null, headline = null)
+        }
+    }
 }
+
+private fun todayEpochMillis(): Long = System.currentTimeMillis()

@@ -62,16 +62,15 @@ object TodaySchedule {
             val weekday = date.dayOfWeek.value
             val override = overrides.firstOrNull { it.week == week && it.weekday == weekday }
             val holiday = override?.mode == DayOverride.MODE_HOLIDAY
-            val effectiveWeekday = if (override?.mode == DayOverride.MODE_SUBSTITUTE && override.substituteWeekday in 1..7) {
-                override.substituteWeekday
-            } else {
-                weekday
-            }
+            val substitute = override?.takeIf { it.mode == DayOverride.MODE_SUBSTITUTE && it.substituteWeekday in 1..7 }
+            val effectiveWeekday = substitute?.substituteWeekday ?: weekday
+            // 跨周补课（如 9/20 补第 5 周的课）按来源周取课，单双周/分段周次过滤才正确
+            val effectiveWeek = substitute?.sourceWeek ?: week
             val items = if (holiday) {
                 emptyList()
             } else {
                 courses
-                    .flatMap { c -> c.sessions.filter { it.weekday == effectiveWeekday && it.hasWeek(week) }.map { c to it } }
+                    .flatMap { c -> c.sessions.filter { it.weekday == effectiveWeekday && it.hasWeek(effectiveWeek) }.map { c to it } }
                     .sortedWith(compareBy({ (_, s) -> s.startNode }, { (c, _) -> c.course.name }))
                     .map { (c, s) ->
                         TodayItem(
@@ -94,7 +93,13 @@ object TodaySchedule {
             append("第${week}周 · 周${DAY_CHARS[date.dayOfWeek.value - 1]} ${date.monthValue}/${date.dayOfMonth}")
             if (overridesApplied?.mode == DayOverride.MODE_HOLIDAY) append(" · 假期")
             if (overridesApplied?.mode == DayOverride.MODE_SUBSTITUTE) {
-                append(" · 按周${DAY_CHARS[overridesApplied.substituteWeekday - 1]}上")
+                val src = overridesApplied.sourceWeek
+                if (src != null && src != week) {
+                    val srcDate = LocalDate.ofEpochDay(semester.startDateEpochDay + (src - 1) * 7L + overridesApplied.substituteWeekday - 1)
+                    append(" · 补${srcDate.monthValue}/${srcDate.dayOfMonth}的课")
+                } else {
+                    append(" · 按周${DAY_CHARS[overridesApplied.substituteWeekday - 1]}上")
+                }
             }
         }
 
