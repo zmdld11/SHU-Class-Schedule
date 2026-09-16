@@ -3,13 +3,17 @@ package io.github.zmdld11.shuschedule.data.settings
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
+import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.map
 
 private val Context.dataStore by preferencesDataStore(name = "settings")
 
@@ -18,11 +22,25 @@ class SettingsStore @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {
     private val dynamicColorKey = booleanPreferencesKey("dynamic_color")
+    private val themeKey = stringPreferencesKey("app_theme")
     private val showOffWeekKey = booleanPreferencesKey("show_off_week")
     private val showWeekendKey = booleanPreferencesKey("show_weekend")
     private val showSlotEndKey = booleanPreferencesKey("show_slot_end")
 
-    val dynamicColor: Flow<Boolean> = context.dataStore.data.map { it[dynamicColorKey] ?: true }
+    val appearance: Flow<AppearanceSettings> = context.dataStore.data
+        .catch { error ->
+            if (error is IOException) emit(emptyPreferences()) else throw error
+        }
+        .map { preferences ->
+            AppearanceSettings(
+                theme = AppTheme.fromId(preferences[themeKey]),
+                dynamicColor = preferences[dynamicColorKey] ?: true,
+            )
+        }
+
+    suspend fun setTheme(theme: AppTheme) {
+        context.dataStore.edit { it[themeKey] = theme.id }
+    }
 
     suspend fun setDynamicColor(value: Boolean) {
         context.dataStore.edit { it[dynamicColorKey] = value }

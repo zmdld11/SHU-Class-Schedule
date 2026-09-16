@@ -39,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -47,15 +48,17 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.zmdld11.shuschedule.data.backup.BackupCodec
 import io.github.zmdld11.shuschedule.data.db.TimeSlot
 import io.github.zmdld11.shuschedule.data.repo.ScheduleRepository
+import io.github.zmdld11.shuschedule.data.settings.AppTheme
+import io.github.zmdld11.shuschedule.data.settings.AppearanceSettings
 import io.github.zmdld11.shuschedule.data.settings.SettingsStore
 import io.github.zmdld11.shuschedule.ui.MainViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import javax.inject.Inject
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
@@ -120,9 +123,6 @@ class SettingsViewModel @Inject constructor(
     val timeSlots: StateFlow<List<TimeSlot>> =
         repository.observeTimeSlots().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val dynamicColor: StateFlow<Boolean> =
-        settings.dynamicColor.stateIn(viewModelScope, SharingStarted.Eagerly, true)
-
     val showOffWeek: StateFlow<Boolean> =
         settings.showOffWeek.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
@@ -136,8 +136,6 @@ class SettingsViewModel @Inject constructor(
         settings.showWinter.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     fun setShowOffWeek(value: Boolean) = viewModelScope.launch { settings.setShowOffWeek(value) }
-
-    fun setDynamicColor(value: Boolean) = viewModelScope.launch { settings.setDynamicColor(value) }
 
     fun setShowWeekend(value: Boolean) = viewModelScope.launch { settings.setShowWeekend(value) }
 
@@ -191,7 +189,8 @@ fun SettingsScreen(
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val timeSlots by viewModel.timeSlots.collectAsStateWithLifecycle()
-    val dynamicColor by mainViewModel.dynamicColor.collectAsStateWithLifecycle()
+    val appearance by mainViewModel.appearance.collectAsStateWithLifecycle()
+    val currentAppearance = appearance ?: AppearanceSettings()
     val showOffWeek by viewModel.showOffWeek.collectAsStateWithLifecycle()
     val showWeekend by viewModel.showWeekend.collectAsStateWithLifecycle()
     val showSlotEnd by viewModel.showSlotEnd.collectAsStateWithLifecycle()
@@ -239,11 +238,22 @@ fun SettingsScreen(
     ) { padding ->
         LazyColumn(Modifier.padding(padding)) {
             item {
+                ThemePicker(selectedTheme = currentAppearance.theme, onSelect = mainViewModel::setTheme)
+            }
+            item {
                 ListItem(
                     headlineContent = { Text("跟随系统动态取色") },
-                    supportingContent = { Text("开启后配色跟随手机壁纸（Material You，Android 12+）；关闭则使用固定主题，按钮、今日高亮、开关等主色为上大蓝") },
+                    supportingContent = {
+                        Text(if (currentAppearance.theme == AppTheme.ARKNIGHTS)
+                            "明日方舟使用固定深色配色；切回默认主题后恢复此设置"
+                        else "配色跟随手机壁纸（Android 12+）；关闭或系统不支持时使用上大蓝")
+                    },
                     trailingContent = {
-                        Switch(checked = dynamicColor, onCheckedChange = viewModel::setDynamicColor)
+                        Switch(
+                            checked = currentAppearance.dynamicColor,
+                            onCheckedChange = mainViewModel::setDynamicColor,
+                            enabled = currentAppearance.theme == AppTheme.DEFAULT && android.os.Build.VERSION.SDK_INT >= 31,
+                        )
                     },
                 )
             }
@@ -332,7 +342,13 @@ fun SettingsScreen(
             item {
                 ListItem(
                     headlineContent = { Text("课表背景") },
-                    supportingContent = { Text(if (scheduleBgEnabled) "已设置，点击更换" else "从相册选一张图作为周视图背景（自动加蒙版保证可读）") },
+                    supportingContent = {
+                        Text(when {
+                            scheduleBgEnabled -> "已设置自选图片，优先于主题背景；清除后恢复主题背景"
+                            currentAppearance.theme == AppTheme.ARKNIGHTS -> "正在使用罗德岛背景；可从相册选择图片替换"
+                            else -> "从相册选一张图作为周视图背景（自动加蒙版保证可读）"
+                        })
+                    },
                     trailingContent = if (scheduleBgEnabled) {
                         {
                             TextButton(onClick = { viewModel.clearScheduleBackground() }) { Text("清除") }
@@ -391,6 +407,20 @@ fun SettingsScreen(
                         Text(
                             "上大课表 v${io.github.zmdld11.shuschedule.BuildConfig.VERSION_NAME} · 课表数据全部保存在本机"
                         )
+                    },
+                )
+            }
+            item {
+                ListItem(
+                    headlineContent = { Text("明日方舟主题素材") },
+                    supportingContent = { Text("来自 mashirozx/arknights-ui（代码 MIT）；游戏贴图版权归原权利人，仅供学习，请勿商用。本应用为非官方项目。") },
+                    modifier = Modifier.clickable {
+                        runCatching {
+                            context.startActivity(android.content.Intent(
+                                android.content.Intent.ACTION_VIEW,
+                                "https://github.com/mashirozx/arknights-ui".toUri(),
+                            ))
+                        }
                     },
                 )
             }

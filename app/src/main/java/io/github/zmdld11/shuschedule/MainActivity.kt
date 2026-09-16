@@ -2,9 +2,12 @@ package io.github.zmdld11.shuschedule
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -26,8 +29,16 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             val mainViewModel: MainViewModel = hiltViewModel()
-            val dynamicColor by mainViewModel.dynamicColor.collectAsStateWithLifecycle()
-            ShuScheduleTheme(dynamicColor = dynamicColor) {
+            val appearance by mainViewModel.appearance.collectAsStateWithLifecycle()
+            val loadedAppearance = appearance ?: return@setContent
+            val dark = loadedAppearance.theme.isDark(isSystemInDarkTheme())
+            DisposableEffect(dark) {
+                val barStyle = if (dark) SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+                    else SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
+                enableEdgeToEdge(statusBarStyle = barStyle, navigationBarStyle = barStyle)
+                onDispose { }
+            }
+            ShuScheduleTheme(theme = loadedAppearance.theme, dynamicColor = loadedAppearance.dynamicColor) {
                 AppNavHost(mainViewModel = mainViewModel)
             }
         }
