@@ -230,6 +230,14 @@ fun ScheduleScreen(
                     onClick = { viewModel.selectWeek((week - 1).coerceAtLeast(1)) },
                     enabled = week > 1,
                 ) { Text("‹", style = MaterialTheme.typography.titleLarge) }
+                // 回本周：出现在指向本周的一侧（浏览本周之后的周→本周在左，之前的周→本周在右）
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = week > currentWeek,
+                    enter = androidx.compose.animation.expandHorizontally() + fadeIn(),
+                    exit = androidx.compose.animation.shrinkHorizontally() + fadeOut(),
+                ) {
+                    TextButton(onClick = { viewModel.selectWeek(null) }) { Text("回本周") }
+                }
                 Text(
                     "第 $week 周",
                     style = MaterialTheme.typography.titleSmall,
@@ -239,7 +247,7 @@ fun ScheduleScreen(
                     textAlign = TextAlign.Center,
                 )
                 androidx.compose.animation.AnimatedVisibility(
-                    visible = week != currentWeek,
+                    visible = week < currentWeek,
                     enter = androidx.compose.animation.expandHorizontally() + fadeIn(),
                     exit = androidx.compose.animation.shrinkHorizontally() + fadeOut(),
                 ) {
