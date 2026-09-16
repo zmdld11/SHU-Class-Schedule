@@ -46,7 +46,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -738,10 +737,14 @@ private fun DayOverrideDialog(
     var mode by remember(existing) {
         mutableStateOf(existing?.mode?.takeIf { it >= 0 } ?: -1) // -1 = 未选（默认正常）
     }
-    var substitute by remember(existing) { mutableStateOf(existing?.substituteWeekday?.takeIf { it > 0 } ?: 1) }
-    var sourceWeek by remember(existing) { mutableStateOf<Int?>(existing?.sourceWeek) }
-    var showDatePicker by remember { mutableStateOf(false) }
     var dateOutOfRange by remember { mutableStateOf(false) }
+    // 选课日期完全决定周次与星期：existing 有值回显其日期，否则从今天开始
+    val initialPicked = remember(existing) {
+        existing?.let { e ->
+            (e.sourceWeek ?: week).let { sw -> dateOfSource(sw, e.substituteWeekday.takeIf { it in 1..7 } ?: weekday) }
+        }?.toEpochDay()?.times(86_400_000L) ?: System.currentTimeMillis()
+    }
+    val pickerState = rememberDatePickerState(initialSelectedDateMillis = initialPicked)
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -759,37 +762,31 @@ private fun DayOverrideDialog(
                     FilterChip(
                         selected = mode == DayOverride.MODE_SUBSTITUTE,
                         onClick = { mode = DayOverride.MODE_SUBSTITUTE },
-                        label = { Text("按周_的课表上") },
+                        label = { Text("调休上课") },
                     )
                 }
                 if (mode == DayOverride.MODE_SUBSTITUTE) {
-                    Text("按哪一天的课表上：", style = MaterialTheme.typography.labelMedium)
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        (1..7).filter { it != weekday }.forEach { d ->
-                            FilterChip(
-                                selected = substitute == d,
-                                onClick = {
-                                    substitute = d
-                                    dateOutOfRange = false
-                                },
-                                label = { Text("周${DAY_CHARS[d - 1]}") },
-                            )
-                        }
-                    }
-                    Text("补的是哪一天的课（默认当天所在周）：", style = MaterialTheme.typography.labelMedium)
-                    OutlinedButton(onClick = { showDatePicker = true }) {
-                        val d = sourceWeek?.let { dateOfSource(it, substitute) }
+                    val picked = pickerState.selectedDateMillis
+                        ?.let { java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneOffset.UTC).toLocalDate() }
+                    if (picked != null) {
+                        val pickedWeek = ((picked.toEpochDay() - startEpochDay) / 7 + 1).toInt()
+                        val inRange = pickedWeek in 1..totalWeeks
                         Text(
-                            when {
-                                sourceWeek == null -> "当天所在周（第 $week 周）"
-                                d != null -> "第 $sourceWeek 周周${DAY_CHARS[substitute - 1]} · ${d.monthValue}/${d.dayOfMonth}"
-                                else -> "第 $sourceWeek 周周${DAY_CHARS[substitute - 1]}"
-                            }
+                            if (inRange) {
+                                "这一天按 ${picked.monthValue}/${picked.dayOfMonth}（第 $pickedWeek 周周${DAY_CHARS[picked.dayOfWeek.value - 1]}）的课表上课"
+                            } else {
+                                "所选日期不在本学期内，请重新选择"
+                            },
+                            style = MaterialTheme.typography.labelMedium,
+                            color = if (inRange) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error,
                         )
+                    } else {
+                        Text("在日历上选这一天要上哪一天的课：", style = MaterialTheme.typography.labelMedium)
                     }
+                    DatePicker(state = pickerState, title = null, headline = null, showModeToggle = false)
                     if (dateOutOfRange) {
                         Text(
-                            "所选日期不在本学期内",
+                            "已忽略学期范围外的日期",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.error,
                         )
@@ -802,40 +799,25 @@ private fun DayOverrideDialog(
                 when (mode) {
                     -2 -> onClear()          // 显式选了正常上课 = 清除覆盖
                     DayOverride.MODE_HOLIDAY -> onSave(DayOverride.MODE_HOLIDAY, 0, null)
-                    DayOverride.MODE_SUBSTITUTE -> onSave(DayOverride.MODE_SUBSTITUTE, substitute, sourceWeek)
+                    DayOverride.MODE_SUBSTITUTE -> {
+                        val picked = pickerState.selectedDateMillis
+                            ?.let { java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneOffset.UTC).toLocalDate() }
+                        if (picked == null) {
+                            onClear() // 没选日期 = 当天正常
+                        } else {
+                            val pickedWeek = ((picked.toEpochDay() - startEpochDay) / 7 + 1).toInt()
+                            if (pickedWeek in 1..totalWeeks) {
+                                dateOutOfRange = false
+                                onSave(DayOverride.MODE_SUBSTITUTE, picked.dayOfWeek.value, pickedWeek)
+                            } else {
+                                dateOutOfRange = true
+                            }
+                        }
+                    }
                     else -> onClear()
                 }
             }) { Text("确定") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
     )
-
-    if (showDatePicker) {
-        val pickerState = rememberDatePickerState(initialSelectedDateMillis = todayEpochMillis())
-        DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    val millis = pickerState.selectedDateMillis
-                    if (millis != null) {
-                        val picked = java.time.Instant.ofEpochMilli(millis).atZone(java.time.ZoneOffset.UTC).toLocalDate()
-                        val pickedWeek = ((picked.toEpochDay() - startEpochDay) / 7 + 1).toInt()
-                        if (pickedWeek in 1..totalWeeks) {
-                            sourceWeek = pickedWeek
-                            substitute = picked.dayOfWeek.value
-                            dateOutOfRange = false
-                        } else {
-                            dateOutOfRange = true
-                        }
-                    }
-                    showDatePicker = false
-                }) { Text("确定") }
-            },
-            dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("取消") } },
-        ) {
-            DatePicker(state = pickerState, title = null, headline = null)
-        }
-    }
 }
-
-private fun todayEpochMillis(): Long = System.currentTimeMillis()
