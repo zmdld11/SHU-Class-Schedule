@@ -15,12 +15,14 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import dagger.hilt.android.AndroidEntryPoint
+import io.github.zmdld11.shuschedule.data.settings.DarkMode
 import io.github.zmdld11.shuschedule.ui.MainViewModel
 import io.github.zmdld11.shuschedule.ui.importer.ImportScreen
 import io.github.zmdld11.shuschedule.ui.schedule.ScheduleScreen
 import io.github.zmdld11.shuschedule.ui.semester.SemestersScreen
 import io.github.zmdld11.shuschedule.ui.settings.SettingsScreen
 import io.github.zmdld11.shuschedule.ui.theme.ShuScheduleTheme
+import io.github.zmdld11.shuschedule.ui.theme.ThemeCatalog
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -31,14 +33,23 @@ class MainActivity : ComponentActivity() {
             val mainViewModel: MainViewModel = hiltViewModel()
             val appearance by mainViewModel.appearance.collectAsStateWithLifecycle()
             val loadedAppearance = appearance ?: return@setContent
-            val dark = loadedAppearance.theme.isDark(isSystemInDarkTheme())
+            // themeId 由目录解析：内置枚举或已导入主题包，未命中回落默认
+            val definition = ThemeCatalog.resolve(loadedAppearance.themeId)
+            val dark = definition.isDark(
+                loadedAppearance.darkMode == DarkMode.DARK ||
+                    (loadedAppearance.darkMode == DarkMode.SYSTEM && isSystemInDarkTheme()),
+            )
             DisposableEffect(dark) {
                 val barStyle = if (dark) SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
                     else SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
                 enableEdgeToEdge(statusBarStyle = barStyle, navigationBarStyle = barStyle)
                 onDispose { }
             }
-            ShuScheduleTheme(theme = loadedAppearance.theme, dynamicColor = loadedAppearance.dynamicColor) {
+            ShuScheduleTheme(
+                definition = definition,
+                dynamicColor = loadedAppearance.dynamicColor,
+                darkMode = loadedAppearance.darkMode,
+            ) {
                 AppNavHost(mainViewModel = mainViewModel)
             }
         }

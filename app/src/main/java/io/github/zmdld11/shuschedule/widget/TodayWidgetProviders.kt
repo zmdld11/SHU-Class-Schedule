@@ -12,9 +12,13 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import io.github.zmdld11.shuschedule.MainActivity
 import io.github.zmdld11.shuschedule.R
 import io.github.zmdld11.shuschedule.data.repo.ScheduleRepository
+import io.github.zmdld11.shuschedule.data.settings.SettingsStore
+import io.github.zmdld11.shuschedule.ui.theme.ThemeCatalog
+import io.github.zmdld11.shuschedule.ui.theme.WidgetThemeColors
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -51,6 +55,11 @@ class WidgetUpdater @Inject constructor(
 abstract class BaseTodayWidgetProvider : AppWidgetProvider() {
 
     @Inject lateinit var repository: ScheduleRepository
+    @Inject lateinit var settings: SettingsStore
+
+    /** 当前主题的小组件配色（读取持久化偏好 → ThemeCatalog 解析；纯净版恒为默认色） */
+    protected suspend fun widgetColors(): WidgetThemeColors =
+        ThemeCatalog.resolve(settings.appearance.first().themeId).widget
 
     final override fun onUpdate(
         context: Context,
@@ -73,8 +82,9 @@ abstract class BaseTodayWidgetProvider : AppWidgetProvider() {
                         )
                     }
                 }.getOrElse { TodaySchedule.build(null, emptyList(), emptyList()) }
+                val colors = runCatching { widgetColors() }.getOrDefault(WidgetThemeColors())
                 appWidgetIds.forEach { id ->
-                    appWidgetManager.updateAppWidget(id, buildViews(context, data, appWidgetManager, id))
+                    appWidgetManager.updateAppWidget(id, buildViews(context, data, appWidgetManager, id, colors))
                 }
             } finally {
                 pendingResult.finish()
@@ -87,6 +97,7 @@ abstract class BaseTodayWidgetProvider : AppWidgetProvider() {
         data: TodayData,
         manager: AppWidgetManager,
         appWidgetId: Int,
+        colors: WidgetThemeColors,
     ): RemoteViews
 
     /** 启动入口走 ACTION_MAIN/LAUNCHER 标准形式；
@@ -136,7 +147,13 @@ abstract class BaseTodayWidgetProvider : AppWidgetProvider() {
 /** 2×2：下一节课卡片 */
 class TodayWidgetSmallProvider : BaseTodayWidgetProvider() {
 
-    override fun buildViews(context: Context, data: TodayData, manager: AppWidgetManager, appWidgetId: Int): RemoteViews {
+    override fun buildViews(
+        context: Context,
+        data: TodayData,
+        manager: AppWidgetManager,
+        appWidgetId: Int,
+        colors: WidgetThemeColors,
+    ): RemoteViews {
         val views = RemoteViews(context.packageName, R.layout.widget_today_small)
         val item = data.nextIndex?.let { data.items.getOrNull(it) }
         when {
@@ -176,6 +193,7 @@ class TodayWidgetSmallProvider : BaseTodayWidgetProvider() {
             }
         }
         views.setOnClickPendingIntent(R.id.widget_small_root, openAppIntent(context))
+        WidgetTheming.applySmall(views, colors)
         return views
     }
 }
@@ -183,11 +201,18 @@ class TodayWidgetSmallProvider : BaseTodayWidgetProvider() {
 /** 4×2：今日课程列表 */
 class TodayWidgetMediumProvider : BaseTodayWidgetProvider() {
 
-    override fun buildViews(context: Context, data: TodayData, manager: AppWidgetManager, appWidgetId: Int): RemoteViews {
+    override fun buildViews(
+        context: Context,
+        data: TodayData,
+        manager: AppWidgetManager,
+        appWidgetId: Int,
+        colors: WidgetThemeColors,
+    ): RemoteViews {
         val views = RemoteViews(context.packageName, R.layout.widget_today_list)
         headerViews(views, data)
         bindList(context, views, manager, appWidgetId, data)
         views.setOnClickPendingIntent(R.id.widget_list_root, openAppIntent(context))
+        WidgetTheming.applyList(views, colors)
         return views
     }
 }
@@ -195,11 +220,18 @@ class TodayWidgetMediumProvider : BaseTodayWidgetProvider() {
 /** 4×4：今日全部课程 */
 class TodayWidgetLargeProvider : BaseTodayWidgetProvider() {
 
-    override fun buildViews(context: Context, data: TodayData, manager: AppWidgetManager, appWidgetId: Int): RemoteViews {
+    override fun buildViews(
+        context: Context,
+        data: TodayData,
+        manager: AppWidgetManager,
+        appWidgetId: Int,
+        colors: WidgetThemeColors,
+    ): RemoteViews {
         val views = RemoteViews(context.packageName, R.layout.widget_today_list)
         headerViews(views, data)
         bindList(context, views, manager, appWidgetId, data)
         views.setOnClickPendingIntent(R.id.widget_list_root, openAppIntent(context))
+        WidgetTheming.applyList(views, colors)
         return views
     }
 }

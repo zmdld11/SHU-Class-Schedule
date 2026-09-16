@@ -8,7 +8,7 @@ class AppThemeTest {
         listOf(null, "", "removed-theme", "ARKNIGHTS").forEach { id ->
             assertEquals(AppTheme.DEFAULT, AppTheme.fromId(id))
         }
-        assertEquals(AppearanceSettings(AppTheme.DEFAULT, true), AppearanceSettings())
+        assertEquals(AppearanceSettings(AppTheme.DEFAULT.id, true), AppearanceSettings())
     }
 
     @Test fun stableStorageIdsResolveToTheirThemes() {

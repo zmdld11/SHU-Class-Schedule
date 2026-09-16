@@ -3,9 +3,9 @@ package io.github.zmdld11.shuschedule.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import io.github.zmdld11.shuschedule.data.settings.AppTheme
 import io.github.zmdld11.shuschedule.data.settings.AppearanceSettings
 import io.github.zmdld11.shuschedule.data.settings.SettingsStore
+import io.github.zmdld11.shuschedule.widget.WidgetUpdater
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -16,7 +16,7 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class MainViewModel @Inject constructor(
     private val settings: SettingsStore,
-    widgetUpdater: io.github.zmdld11.shuschedule.widget.WidgetUpdater,
+    private val widgetUpdater: WidgetUpdater,
 ) : ViewModel() {
 
     init {
@@ -27,11 +27,22 @@ class MainViewModel @Inject constructor(
     val appearance: StateFlow<AppearanceSettings?> =
         settings.appearance.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-    fun setTheme(theme: AppTheme) {
-        viewModelScope.launch { settings.setTheme(theme) }
+    /** themeId：内置枚举 id 或已导入主题包 id；切换后小组件随新配色重绘 */
+    fun setTheme(themeId: String) {
+        viewModelScope.launch {
+            settings.setTheme(themeId)
+            widgetUpdater.pushAll()
+        }
+    }
+
+    fun setDarkMode(mode: io.github.zmdld11.shuschedule.data.settings.DarkMode) {
+        viewModelScope.launch { settings.setDarkMode(mode) }
     }
 
     fun setDynamicColor(value: Boolean) {
-        viewModelScope.launch { settings.setDynamicColor(value) }
+        viewModelScope.launch {
+            settings.setDynamicColor(value)
+            widgetUpdater.pushAll()
+        }
     }
 }

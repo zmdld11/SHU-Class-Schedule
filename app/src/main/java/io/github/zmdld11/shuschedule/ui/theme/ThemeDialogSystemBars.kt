@@ -1,6 +1,5 @@
 package io.github.zmdld11.shuschedule.ui.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.platform.LocalView
@@ -12,7 +11,7 @@ import androidx.core.view.WindowCompat
 internal fun ThemeDialogSystemBars() {
     val view = LocalView.current
     val window = (view.parent as? DialogWindowProvider)?.window ?: return
-    val dark = LocalScheduleStyle.current.theme.isDark(isSystemInDarkTheme())
+    val dark = LocalScheduleDark.current
     SideEffect {
         WindowCompat.getInsetsController(window, view).apply {
             isAppearanceLightStatusBars = !dark

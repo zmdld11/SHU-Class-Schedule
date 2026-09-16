@@ -23,6 +23,7 @@ class SettingsStore @Inject constructor(
 ) {
     private val dynamicColorKey = booleanPreferencesKey("dynamic_color")
     private val themeKey = stringPreferencesKey("app_theme")
+    private val darkModeKey = stringPreferencesKey("dark_mode")
     private val showOffWeekKey = booleanPreferencesKey("show_off_week")
     private val showWeekendKey = booleanPreferencesKey("show_weekend")
     private val showSlotEndKey = booleanPreferencesKey("show_slot_end")
@@ -33,13 +34,18 @@ class SettingsStore @Inject constructor(
         }
         .map { preferences ->
             AppearanceSettings(
-                theme = AppTheme.fromId(preferences[themeKey]),
+                themeId = preferences[themeKey] ?: AppTheme.DEFAULT.id, // 外部主题包 id 原样保存，未命中时渲染侧回落默认
                 dynamicColor = preferences[dynamicColorKey] ?: true,
+                darkMode = DarkMode.fromId(preferences[darkModeKey]),
             )
         }
 
-    suspend fun setTheme(theme: AppTheme) {
-        context.dataStore.edit { it[themeKey] = theme.id }
+    suspend fun setTheme(themeId: String) {
+        context.dataStore.edit { it[themeKey] = themeId }
+    }
+
+    suspend fun setDarkMode(mode: DarkMode) {
+        context.dataStore.edit { it[darkModeKey] = mode.id }
     }
 
     suspend fun setDynamicColor(value: Boolean) {
