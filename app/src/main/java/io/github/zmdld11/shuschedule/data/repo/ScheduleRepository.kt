@@ -43,6 +43,35 @@ fun assignColorIndices(names: List<String>, preoccupied: Set<Int> = emptySet()):
     return result
 }
 
+/** 调休落库计划：锚点日=实际改课表的那天，来源日=被借课的那天 */
+data class DayOverridePlan(
+    val anchorWeek: Int,
+    val anchorWeekday: Int,
+    val sourceWeek: Int,
+    val sourceWeekday: Int,
+)
+
+/**
+ * 调休上课两方向解析成统一的锚点/来源（最终写同一条 day_overrides 记录）：
+ * direction 0 = 本日（长按列）上所选日期的课，锚点=长按日；
+ * direction 1 = 所选日期上本日的课，锚点=所选日期——周末列隐藏时也能从工作日列直接设补班日。
+ * 所选日期就是长按日本身时返回 null（自指无意义）。
+ */
+fun resolveSubstitutePlan(
+    direction: Int,
+    week: Int,
+    weekday: Int,
+    pickedWeek: Int,
+    pickedWeekday: Int,
+): DayOverridePlan? {
+    if (pickedWeek == week && pickedWeekday == weekday) return null
+    return if (direction == 0) {
+        DayOverridePlan(week, weekday, pickedWeek, pickedWeekday)
+    } else {
+        DayOverridePlan(pickedWeek, pickedWeekday, week, weekday)
+    }
+}
+
 @Singleton
 class ScheduleRepository @Inject constructor(
     private val db: ShuScheduleDatabase,

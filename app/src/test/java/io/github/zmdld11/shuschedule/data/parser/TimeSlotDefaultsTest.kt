@@ -21,4 +21,12 @@ class TimeSlotDefaultsTest {
         }
         assertTrue(TimeSlotDefaults.all.all { it.startTime < it.endTime })
     }
+
+    @Test
+    fun `晚间 11-12 节为实证值`() {
+        assertEquals("20:00", TimeSlotDefaults.all[10].startTime)
+        assertEquals("20:45", TimeSlotDefaults.all[10].endTime)
+        assertEquals("20:55", TimeSlotDefaults.all[11].startTime)
+        assertEquals("21:40", TimeSlotDefaults.all[11].endTime)
+    }
 }
