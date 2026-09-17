@@ -3,11 +3,15 @@ package io.github.zmdld11.shuschedule.ui.update
 import android.content.Context
 import android.content.Intent
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import com.mikepenz.markdown.compose.Markdown
+import com.mikepenz.markdown.model.DefaultMarkdownColors
+import com.mikepenz.markdown.model.DefaultMarkdownTypography
 import io.github.zmdld11.shuschedule.BuildConfig
 import io.github.zmdld11.shuschedule.data.update.ApkDownloader
 import io.github.zmdld11.shuschedule.data.update.UpdateChecker.ReleaseInfo
@@ -32,6 +36,45 @@ object UpdateActions {
             )
         }
     }
+}
+
+/** GitHub Releases 的更新说明按 Markdown 渲染（标题/列表/加粗/链接/表格），配色排版跟随 Material 主题 */
+@Composable
+fun ReleaseNotes(text: String, modifier: Modifier = Modifier) {
+    val scheme = MaterialTheme.colorScheme
+    val typography = MaterialTheme.typography
+    Markdown(
+        content = text,
+        colors = DefaultMarkdownColors(
+            text = scheme.onSurface,
+            codeText = scheme.onSurface,
+            inlineCodeText = scheme.onSurface,
+            linkText = scheme.primary,
+            codeBackground = scheme.surfaceVariant,
+            inlineCodeBackground = scheme.surfaceVariant,
+            dividerColor = scheme.outlineVariant,
+            tableText = scheme.onSurface,
+            tableBackground = scheme.surfaceVariant,
+        ),
+        typography = DefaultMarkdownTypography(
+            h1 = typography.titleLarge,
+            h2 = typography.titleMedium,
+            h3 = typography.titleSmall,
+            h4 = typography.titleSmall,
+            h5 = typography.titleSmall,
+            h6 = typography.titleSmall,
+            text = typography.bodyMedium,
+            code = typography.bodySmall,
+            inlineCode = typography.bodyMedium,
+            quote = typography.bodyMedium,
+            paragraph = typography.bodyMedium,
+            ordered = typography.bodyMedium,
+            bullet = typography.bodyMedium,
+            list = typography.bodyMedium,
+            link = typography.bodyMedium,
+        ),
+        modifier = modifier,
+    )
 }
 
 /** 「安装未知应用」授权引导弹窗；拒绝时回退浏览器下载页 */

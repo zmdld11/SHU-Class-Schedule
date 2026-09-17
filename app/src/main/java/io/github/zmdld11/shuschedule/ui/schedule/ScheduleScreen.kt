@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -550,9 +551,12 @@ fun ScheduleScreen(
             onDismissRequest = viewModel::dismissUpdate,
             title = { Text("发现新版本 ${info.tagName}") },
             text = {
-                Column(Modifier.verticalScroll(rememberScrollState())) {
-                    Text(info.body.ifBlank { info.name }, style = MaterialTheme.typography.bodySmall)
-                }
+                io.github.zmdld11.shuschedule.ui.update.ReleaseNotes(
+                    text = info.body.ifBlank { info.name },
+                    modifier = Modifier
+                        .heightIn(max = 420.dp)
+                        .verticalScroll(rememberScrollState()),
+                )
             },
             confirmButton = {
                 TextButton(onClick = {
