@@ -29,6 +29,7 @@ class BackupCodecTest {
                     classId = "9100001",
                     credit = "4",
                     colorIndex = 3,
+                    note = "带教材\n周五交作业",
                 ) to listOf(
                     CourseSession(
                         courseId = 1,
@@ -72,6 +73,7 @@ class BackupCodecTest {
         assertEquals("数据结构", course.name)
         assertEquals("CS1001", course.courseCode)
         assertEquals(3, course.colorIndex)
+        assertEquals("带教材\n周五交作业", course.note)
         assertEquals(2, sessions.size)
 
         val mon = sessions.first { it.weekday == 1 }
@@ -83,6 +85,15 @@ class BackupCodecTest {
 
         assertEquals(2, back.timeSlots.size)
         assertEquals("08:00", back.timeSlots.first().startTime)
+    }
+
+    @Test
+    fun oldBackupWithoutNoteDefaultsToEmpty() {
+        val text = BackupCodec.encode(sampleSnapshot())
+            .replace(Regex("\\s*\"note\"\\s*:\\s*\"(?:\\\\.|[^\"\\\\])*\",?"), "")
+        val back = BackupCodec.decode(text)
+        assertNotNull(back)
+        assertEquals("", back!!.semesters.single().second.single().first.note)
     }
 
     @Test

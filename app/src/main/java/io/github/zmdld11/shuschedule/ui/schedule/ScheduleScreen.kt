@@ -45,9 +45,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -60,6 +62,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -78,6 +81,10 @@ import io.github.zmdld11.shuschedule.data.db.DayOverride
 import io.github.zmdld11.shuschedule.data.repo.resolveSubstitutePlan
 import java.time.LocalDate
 import java.time.YearMonth
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 
 private val CELL_HEIGHT = 52.dp
 internal val DAY_CHARS = listOf("一", "二", "三", "四", "五", "六", "日")
@@ -132,12 +139,15 @@ fun ScheduleScreen(
 
 
     val semester = state.semester
+    val headerScrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
 
     ScheduleScaffold(
+        modifier = Modifier.nestedScroll(headerScrollBehavior.nestedScrollConnection),
         backgroundPath = backgroundPath,
         topBar = {
             var semesterMenu by remember { mutableStateOf(false) }
             TopAppBar(
+                scrollBehavior = headerScrollBehavior,
                 title = {
                     Column(
                         Modifier.clickable { semesterMenu = true },
@@ -188,7 +198,7 @@ fun ScheduleScreen(
                 },
                 actions = {
                     if (semester != null) {
-                        IconButton(onClick = viewModel::openNewCourseEditor) {
+                        IconButton(onClick = { viewModel.openNewCourseEditor() }) {
                             Icon(Icons.Filled.Add, contentDescription = "添加课程")
                         }
                     }
@@ -409,6 +419,24 @@ fun ScheduleScreen(
                             .height(CELL_HEIGHT * nodeCount)
                             .background(overrideTint),
                     ) {
+                        // 空白格按节次提供入口；课程覆盖的节次不响应添加。
+                        Column(Modifier.fillMaxWidth()) {
+                            repeat(nodeCount) { index ->
+                                val node = index + 1
+                                val occupied = blocks.any { node in it.session.startNode..it.session.endNode }
+                                Box(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .height(CELL_HEIGHT)
+                                        .clickable(
+                                            enabled = !occupied,
+                                            onClickLabel = "添加周${DAY_CHARS[effectiveWeekday - 1]}第${node}节课程",
+                                        ) {
+                                            viewModel.openNewCourseEditor(effectiveWeekday, node, effectiveWeek)
+                                        },
+                                )
+                            }
+                        }
                         blocks.forEach { block ->
                             val courseColors = scheduleStyle.colorsFor(block.course.course.colorIndex)
                             val span = block.session.endNode - block.session.startNode + 1
@@ -514,6 +542,7 @@ fun ScheduleScreen(
                 onAddSession = { viewModel.openSessionEditor(course.course, null) },
                 onReschedule = { s -> viewModel.openSessionEditor(course.course, s, reschedule = true) },
                 onDeleteCourse = { deletingCourse = course },
+                onSaveNote = { note -> viewModel.saveCourseNote(course.course.id, note) },
                 modifier = Modifier.padding(horizontal = 24.dp).padding(bottom = 32.dp),
             )
         }
@@ -525,7 +554,7 @@ fun ScheduleScreen(
             ThemeDialogSystemBars()
             SessionEditorSheet(
                 courseName = target.course.name,
-                initialSession = target.session,
+                initialSession = target.session ?: target.newSessionDefaults,
                 slotCount = maxOf(state.timeSlots.size, 12),
                 isNewCourse = target.course.id == 0L,
                 initialColorIndex = target.course.colorIndex,
@@ -647,10 +676,45 @@ private fun CourseDetailContent(
     onAddSession: () -> Unit,
     onReschedule: (CourseSession) -> Unit,
     onDeleteCourse: () -> Unit,
+    onSaveNote: suspend (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    var note by rememberSaveable(course.course.id, course.course.note) { mutableStateOf(course.course.note) }
+    var saving by remember { mutableStateOf(false) }
+    var noteError by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    Column(modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(course.course.name, style = MaterialTheme.typography.titleLarge)
+        OutlinedTextField(
+            value = note,
+            onValueChange = { note = it; noteError = false },
+            label = { Text("课程备注") },
+            placeholder = { Text("例如：上课带教材、作业截止时间") },
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 2,
+            maxLines = 5,
+            enabled = !saving,
+            isError = noteError,
+            supportingText = { Text(if (noteError) "保存失败，请重试" else "同一门课的所有时段共用备注，清空后保存可删除") },
+        )
+        TextButton(
+            enabled = !saving && note != course.course.note,
+            onClick = {
+                scope.launch {
+                    saving = true
+                    noteError = false
+                    try {
+                        onSaveNote(note)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (_: Exception) {
+                        noteError = true
+                    } finally {
+                        saving = false
+                    }
+                }
+            },
+        ) { Text(if (saving) "保存中…" else "保存备注") }
         Text(
             listOfNotNull(
                 course.course.className.takeIf { it.isNotBlank() },

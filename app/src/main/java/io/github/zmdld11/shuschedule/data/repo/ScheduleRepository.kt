@@ -213,6 +213,8 @@ class ScheduleRepository @Inject constructor(
     /** 删除整门课（时段级联删除） */
     suspend fun deleteCourse(courseId: Long) = courseDao.deleteCourse(courseId)
 
+    suspend fun updateCourseNote(courseId: Long, note: String) = courseDao.updateNote(courseId, note)
+
     /**
      * 手动调休：把 original 中第 week 周的一次课拆出来，换成 newSession（单周、带调课标记）。
      * 原时段周次减去该周；减完为空则原位替换。

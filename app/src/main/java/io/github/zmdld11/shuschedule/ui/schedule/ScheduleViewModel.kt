@@ -159,6 +159,13 @@ class ScheduleViewModel @Inject constructor(
         }
     }
 
+    suspend fun saveCourseNote(courseId: Long, note: String) {
+        repository.updateCourseNote(courseId, note)
+        _detailCourse.value?.takeIf { it.course.id == courseId }?.let {
+            _detailCourse.value = it.copy(course = it.course.copy(note = note))
+        }
+    }
+
     fun showDetail(course: CourseWithSessions?) {
         _detailCourse.value = course
     }
@@ -170,6 +177,7 @@ class ScheduleViewModel @Inject constructor(
         val course: Course,
         val session: CourseSession?,
         val reschedule: Boolean = false,
+        val newSessionDefaults: CourseSession? = null,
     )
 
     private val _editorTarget = MutableStateFlow<SessionEditTarget?>(null)
@@ -180,7 +188,7 @@ class ScheduleViewModel @Inject constructor(
         _editorTarget.value = SessionEditTarget(course, session, reschedule)
     }
 
-    fun openNewCourseEditor() {
+    fun openNewCourseEditor(weekday: Int? = null, node: Int = 1, week: Int = 1) {
         val semester = state.value.semester ?: return
         _editorTarget.value = SessionEditTarget(
             course = Course(
@@ -192,6 +200,17 @@ class ScheduleViewModel @Inject constructor(
                 credit = "",
             ),
             session = null,
+            newSessionDefaults = weekday?.let {
+                CourseSession(
+                    courseId = 0,
+                    weekday = it,
+                    startNode = node,
+                    endNode = node,
+                    weeksMask = CourseSession.maskOf(listOf(week)),
+                    room = "",
+                    teacher = "",
+                )
+            },
         )
     }
 

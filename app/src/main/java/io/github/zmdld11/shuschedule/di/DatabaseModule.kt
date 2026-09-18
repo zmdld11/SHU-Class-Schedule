@@ -54,6 +54,12 @@ private class Migration4To5 : Migration(4, 5) {
     }
 }
 
+private class Migration5To6 : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE courses ADD COLUMN note TEXT NOT NULL DEFAULT ''")
+    }
+}
+
 @Module
 @InstallIn(SingletonComponent::class)
 object DatabaseModule {
@@ -62,8 +68,8 @@ object DatabaseModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): ShuScheduleDatabase =
         Room.databaseBuilder(context, ShuScheduleDatabase::class.java, "shu_schedule.db")
-            .addMigrations(Migration2To3(), Migration3To4(), Migration4To5())
-            // 开发期兜底（已提供 v2→v5 迁移，正常升级不触发破坏性重建）
+            .addMigrations(Migration2To3(), Migration3To4(), Migration4To5(), Migration5To6())
+            // 开发期兜底（已提供 v2→v6 迁移，正常升级不触发破坏性重建）
             .fallbackToDestructiveMigration(true)
             .build()
 
