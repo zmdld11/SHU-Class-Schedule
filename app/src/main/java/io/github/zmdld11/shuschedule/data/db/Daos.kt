@@ -74,6 +74,9 @@ interface CourseDao {
     @Insert
     suspend fun insertSessions(sessions: List<CourseSession>)
 
+    @Query("UPDATE courses SET note = :note WHERE id = :courseId")
+    suspend fun updateNote(courseId: Long, note: String)
+
     @Update
     suspend fun updateCourse(course: Course)
 

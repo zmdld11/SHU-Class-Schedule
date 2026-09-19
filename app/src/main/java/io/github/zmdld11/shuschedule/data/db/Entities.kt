@@ -63,6 +63,8 @@ data class Course(
     /** xf 学分（正方返回字符串，原样保存） */
     val credit: String,
     val colorIndex: Int = 0,
+    @androidx.room.ColumnInfo(defaultValue = "''")
+    val note: String = "",
 )
 
 @Entity(

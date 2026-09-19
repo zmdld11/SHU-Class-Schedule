@@ -47,6 +47,7 @@ object BackupCodec {
         val classId: String,
         val credit: String,
         val colorIndex: Int = 0,
+        val note: String = "",
         val sessions: List<BackupSession> = emptyList(),
     )
 
@@ -89,6 +90,7 @@ object BackupCodec {
                             classId = course.classId,
                             credit = course.credit,
                             colorIndex = course.colorIndex,
+                            note = course.note,
                             sessions = sessions.map { s ->
                                 BackupSession(
                                     weekday = s.weekday,
@@ -131,6 +133,7 @@ object BackupCodec {
                         classId = bc.classId,
                         credit = bc.credit,
                         colorIndex = bc.colorIndex,
+                        note = bc.note,
                     )
                     course to bc.sessions.map { s ->
                         CourseSession(

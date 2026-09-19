@@ -25,6 +25,7 @@ import kotlinx.coroutines.withContext
 fun ScheduleScaffold(
     backgroundPath: String? = null,
     topBar: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
     val customBackground by produceState<Bitmap?>(null, backgroundPath) {
@@ -42,7 +43,7 @@ fun ScheduleScaffold(
             }
         }
     }
-    Scaffold(topBar = topBar) { padding ->
+    Scaffold(modifier = modifier, topBar = topBar) { padding ->
         Box(Modifier.padding(padding).fillMaxSize().background(MaterialTheme.colorScheme.background)) {
             // A chosen photo takes precedence; clearing it restores the theme's built-in backdrop.
             val style = LocalScheduleStyle.current
