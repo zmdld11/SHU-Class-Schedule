@@ -20,6 +20,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -31,21 +32,24 @@ class WidgetUpdater @Inject constructor(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     fun pushAll() {
-        scope.launch {
-            val manager = AppWidgetManager.getInstance(context)
-            listOf(
-                TodayWidgetSmallProvider::class.java,
-                TodayWidgetMediumProvider::class.java,
-                TodayWidgetLargeProvider::class.java,
-            ).forEach { cls ->
-                val ids = manager.getAppWidgetIds(ComponentName(context, cls))
-                if (ids.isNotEmpty()) {
-                    context.sendBroadcast(
-                        Intent(context, cls)
-                            .setAction(AppWidgetManager.ACTION_APPWIDGET_UPDATE)
-                            .putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids),
-                    )
-                }
+        scope.launch { pushAllBlocking() }
+    }
+
+    /** 同步版本：供广播接收器在 goAsync 生命期内调用，保证投递完成前进程不被回收 */
+    suspend fun pushAllBlocking() = withContext(Dispatchers.Default) {
+        val manager = AppWidgetManager.getInstance(context)
+        listOf(
+            TodayWidgetSmallProvider::class.java,
+            TodayWidgetMediumProvider::class.java,
+            TodayWidgetLargeProvider::class.java,
+        ).forEach { cls ->
+            val ids = manager.getAppWidgetIds(ComponentName(context, cls))
+            if (ids.isNotEmpty()) {
+                context.sendBroadcast(
+                    Intent(context, cls)
+                        .setAction(AppWidgetManager.ACTION_APPWIDGET_UPDATE)
+                        .putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids),
+                )
             }
         }
     }
